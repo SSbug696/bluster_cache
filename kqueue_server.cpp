@@ -1,10 +1,11 @@
-#include "epoll_server.h"
+#include "kqueue_server.h"
 
 Server::Server(size_t max_pool_sz) {
   //_buffer_recv = new char(MAX_BUFFER_SIZE);
   memset(&_buffer_recv, 0, sizeof(_buffer_recv));
 
   cache = new QCache(max_pool_sz);
+
   intitWorkersPool();
 
   _min_commands_len["s"] = 3;
@@ -304,42 +305,6 @@ void Server::data() {
           
     std::unique_lock<std::mutex> mlock_rt_write(_mutex_rw);
 
-    if( 
-        (events[sock_id].events & EPOLLERR) ||
-        (events[sock_id].events & EPOLLHUP)
-      ) {
-
-      close(events[sock_id].data.fd);
-
-    } else {
-
-      while(1) {
-        int s = write(events[sock_id].data.fd, buffer, szs);
-        
-        if(s == -1) {
-
-         if( 
-            (events[sock_id].events & EPOLLERR) ||
-            (events[sock_id].events & EPOLLHUP)
-          ) {
-            close(events[sock_id].data.fd);
-            break;
-          }
-
-          if(errno == EWOULDBLOCK || errno == EAGAIN) {
-            continue;
-          }
-
-          events[sock_id].events |= EPOLLERR;
-
-        } else if(s == 0) {
-          events[sock_id].events |= EPOLLERR;
-        }
-
-        break;
-      }
-
-    }
 
     mlock_rt_write.unlock();
   }
@@ -388,7 +353,7 @@ int Server::make_socket_non_blocking(int sfd) {
   return 0;
 }
 
-int Server::create_and_bind(char *port) {
+int Server::create_and_bind(char * port) {
   struct addrinfo hints;
   struct addrinfo *result, *rp;
   int s, sfd;
@@ -429,115 +394,84 @@ int Server::create_and_bind(char *port) {
 }
 
 int Server::init(char * port) {
+  struct addrinfo *addr;
+  struct addrinfo hints;
 
-  sfd = create_and_bind(port);
-  if (sfd == -1)
-    abort ();
+  /* open a TCP socket */
+  memset(&hints, 0, sizeof hints);
+  hints.ai_family = PF_UNSPEC; /* any supported protocol */
+  hints.ai_flags = AI_PASSIVE; /* result for bind() */
+  hints.ai_socktype = SOCK_STREAM;
 
-  s = make_socket_non_blocking (sfd);
-  if (s == -1)
-    abort ();
+  int error = getaddrinfo ("127.0.0.1", "4000", &hints, &addr);
+  if (error)
+      sprintf("getaddrinfo failed: %s", gai_strerror(error));
 
-  s = listen (sfd, SOMAXCONN);
-  if (s == -1)
-    {
-      perror ("listen");
-      abort ();
-    }
+  int local_s = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
+  int bfd = bind(local_s, addr->ai_addr, addr->ai_addrlen);
+  s = listen(local_s, 5);
 
-  efd = epoll_create1(0);
-  if (efd == -1)
-    {
-      perror ("epoll_create");
-      abort ();
-    }
+  int kq = kqueue();
+  EV_SET(&events_set, s, EVFILT_READ, EV_ADD, 0, 0, NULL);
+  if(kevent(kq, &events_set, 1, NULL, 0, NULL) == -1)
+    perror("accept");
 
-  event.data.fd = sfd;
-  event.events = EPOLLIN | EPOLLET | EPOLLOUT;
-  s = epoll_ctl (efd, EPOLL_CTL_ADD, sfd, &event);
-  if (s == -1)
-    {
-      perror ("epoll_ctl");
-      abort ();
-    }
 
-  /* Buffer where events are returned */
-  events = (epoll_event *)calloc(MAXEVENTS, sizeof(event));
+  while(1) {
+    int nev = kevent(kq, NULL, 0, events_list, 32, NULL);
+    if (nev < 1)
+      perror("accept");
 
-  /* The event loop */
-  while (1) {
-    int n, i;
 
-    // Awaiting some event
-    n = epoll_wait(efd, events, MAXEVENTS, -1);
-    
-    // Iteration by all changed sockets
-    for(i = 0; i < n; i++) {
+    for(int i = 0; i < nev; i ++) {
 
-      // HUP socket
-      if(
-        events[i].events & EPOLLERR ||
-        events[i].events & EPOLLHUP ) {
+      if(events_list[i].flags & EV_EOF) {
+        printf("disconnect\n");
 
-        /* An error has occured on this fd, or the socket is not
-           ready for reading (why were we notified then?) */
-        fprintf(stderr, "epoll error\n");
-        close(events[i].data.fd);
-        continue;
+        int fd = events_list[i].ident;
+        EV_SET(&events_set, fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
 
-      } else if (sfd == events[i].data.fd) {
-        /*
-          Adding new descriptor
-         */
+        if(kevent(kq, &events_set, 1, NULL, 0, NULL) == -1)
+          perror("error of close socket");
+        
+        close(fd);
+
+      } else if(events_list[i].ident == s) {
+        std::cout << "new client" << std::endl;
+        // New request accepted
         struct sockaddr in_addr;
         socklen_t in_len;
         int infd;
 
         in_len = sizeof(in_addr);
 
-        infd = accept(sfd, &in_addr, &in_len);
+        infd = accept(events_list[i].ident, &in_addr, &in_len);
         if (infd == -1) {
-            if ((errno == EAGAIN) ||
-                (errno == EWOULDBLOCK)) {
-                continue;
-        } else  {
-            perror("accept");
-            continue;
-          }
-        }
-        
-        s = make_socket_non_blocking(infd);
-        if (s == -1) {
-          perror("error of non-block mode");
+          perror("accept error");
           continue;
         }
-
-        event.data.fd = infd;
-        event.events = EPOLLIN | EPOLLET | EPOLLOUT;
-        s = epoll_ctl(efd, EPOLL_CTL_ADD, infd, &event);
         
-        if(s == -1) {
-          perror ("epoll_ctl");
-          abort ();
+        int fd = make_socket_non_blocking(infd);
+
+        if (fd == -1) {
+          perror("invalid create FD");
         }
 
-        continue;
-      } else {
-        // Read data from socket by chunks
-        //while(1) {
-        _recv_bytes_count = read(events[i].data.fd, _buffer_recv, sizeof(_buffer_recv));
+        EV_SET(&events_set, fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
+        if (kevent(kq, &events_set, 1, NULL, 0, NULL) == -1)
+          perror("kevent");
+
+      } else if (events_list[i].flags == EVFILT_READ) {
+
+        _recv_bytes_count = read(events_list[i].ident, _buffer_recv, sizeof(_buffer_recv));
                
         // If 0 to send SIG of HUP socket
         if(_recv_bytes_count == 0) {
-          events[i].events |= EPOLLHUP;
           continue;
-
         } else if(_recv_bytes_count == -1) {
-          
-          // If socket can't be read
-          if(errno != EAGAIN && errno != EWOULDBLOCK) 
-            events[i].events |= EPOLLERR;
-          
+          // events_set[i].uc_fd = 0;
+          // events_set[i].uc_addr = NULL;
+          // close(events_list[i].ident);
           continue;
         }
         
@@ -547,6 +481,8 @@ int Server::init(char * port) {
         ts->command = str;
         ts->handle_client = i;
 
+        std::cout << _buffer_recv << std::endl;
+
         memset(_buffer_recv, 0, sizeof(_buffer_recv));
 
         atomic_lock_nr.fetch_add(1, std::memory_order_relaxed);
@@ -555,14 +491,10 @@ int Server::init(char * port) {
         
         _request_queue.push(ts);
 
-        mlock_queue.unlock();      
+        mlock_queue.unlock(); 
       }
     }
   }
 
-  free(events);
-  close(sfd);
-
-  sleep(1000);
-  return EXIT_SUCCESS;
+  return 0;
 }

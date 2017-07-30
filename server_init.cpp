@@ -1,5 +1,10 @@
 
-#include "epoll_server.cpp"
+#ifdef __APPLE__
+ #include "kqueue_server.h"
+#elif
+  #include "epoll_server.h"
+#endif
+
 #include <iostream>
 
 int main (int argc, char * argv[]) {

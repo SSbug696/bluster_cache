@@ -394,41 +394,36 @@ int Server::create_and_bind(char * port) {
 }
 
 int Server::init(char * port) {
-  struct addrinfo *addr;
-  struct addrinfo hints;
-
-  /* open a TCP socket */
-  memset(&hints, 0, sizeof hints);
-  hints.ai_family = PF_UNSPEC; /* any supported protocol */
-  hints.ai_flags = AI_PASSIVE; /* result for bind() */
-  hints.ai_socktype = SOCK_STREAM;
-
-  int error = getaddrinfo ("127.0.0.1", "4000", &hints, &addr);
-  if (error)
-      sprintf("getaddrinfo failed: %s", gai_strerror(error));
-
-  int local_s = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
-  int bfd = bind(local_s, addr->ai_addr, addr->ai_addrlen);
-  s = listen(local_s, 5);
+  int local_s = create_and_bind(port);
+  int fd = make_socket_non_blocking(local_s);
+  if (fd == -1) {
+    perror("invalid create FD");
+  }
+  
+  s = listen(local_s, SOMAXCONN);
+  if(s == -1) 
+    perror("invalid listen socket");
 
   int kq = kqueue();
-  EV_SET(&events_set, s, EVFILT_READ, EV_ADD, 0, 0, NULL);
+  EV_SET(&events_set, local_s, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
   if(kevent(kq, &events_set, 1, NULL, 0, NULL) == -1)
     perror("accept");
 
-
   while(1) {
+    // watch core event
     int nev = kevent(kq, NULL, 0, events_list, 32, NULL);
+
     if (nev < 1)
       perror("accept");
 
-
     for(int i = 0; i < nev; i ++) {
+
+      // std::cout << i << std::endl;
 
       if(events_list[i].flags & EV_EOF) {
         printf("disconnect\n");
 
-        int fd = events_list[i].ident;
+        fd = events_list[i].ident;
         EV_SET(&events_set, fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
 
         if(kevent(kq, &events_set, 1, NULL, 0, NULL) == -1)
@@ -436,7 +431,7 @@ int Server::init(char * port) {
         
         close(fd);
 
-      } else if(events_list[i].ident == s) {
+      } else if(events_list[i].ident == local_s) {
         std::cout << "new client" << std::endl;
         // New request accepted
         struct sockaddr in_addr;
@@ -452,27 +447,28 @@ int Server::init(char * port) {
         }
         
         int fd = make_socket_non_blocking(infd);
-
         if (fd == -1) {
-          perror("invalid create FD");
+         perror("invalid create FD");
         }
 
-        EV_SET(&events_set, fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
+        EV_SET(&events_set, infd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
         if (kevent(kq, &events_set, 1, NULL, 0, NULL) == -1)
           perror("kevent");
 
-      } else if (events_list[i].flags == EVFILT_READ) {
-
+      } else  {
         _recv_bytes_count = read(events_list[i].ident, _buffer_recv, sizeof(_buffer_recv));
                
         // If 0 to send SIG of HUP socket
         if(_recv_bytes_count == 0) {
           continue;
         } else if(_recv_bytes_count == -1) {
-          // events_set[i].uc_fd = 0;
-          // events_set[i].uc_addr = NULL;
-          // close(events_list[i].ident);
-          continue;
+          if(errno == EWOULDBLOCK || errno == EAGAIN) {
+            continue;
+          } else {
+            // Close descriptor
+            close(events_list[i].ident);
+            continue;
+          }
         }
         
         std::string str(_buffer_recv);
@@ -481,16 +477,10 @@ int Server::init(char * port) {
         ts->command = str;
         ts->handle_client = i;
 
-        std::cout << _buffer_recv << std::endl;
-
         memset(_buffer_recv, 0, sizeof(_buffer_recv));
-
         atomic_lock_nr.fetch_add(1, std::memory_order_relaxed);
-
         std::unique_lock<std::mutex> mlock_queue(_mutex_queue);
-        
         _request_queue.push(ts);
-
         mlock_queue.unlock(); 
       }
     }

@@ -31,8 +31,6 @@
 #define MAXEVENTS 10
 #define WORKERS_POOL 1
 
-
-
 class Server {
   enum  actions { UNKNOWN = 0, ERR, SET, GET, DEL, EXIST, FLUSH, SIZE };
 

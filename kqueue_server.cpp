@@ -53,28 +53,15 @@ void Server::data() {
     // Get client ID from
     uid = _request_queue.back();
     _request_queue.pop();
-        std::cout << 201 << std::endl;
 
-    //_mutex_task.lock();
     task_struct * t_ptr = tasks[uid];
-
-    //std::unique_ptr<task_struct> t_ptr(std::move(tasks[uid]));
-    // Get task struct for current client
-    clearBuffer(uid);
-    _mutex_task.unlock();
-
-    //std::cout << 101 << std::endl;
 
     // Reset buffers
     memset(buffer, 0, MAX_BUFFER_SIZE);
     memset(tmp_buffer, 0, MAX_BUFFER_SIZE);
 
-    std::cout << 11 << std::endl;
-
-    sz = t_ptr->command.str().size();
     command_line = t_ptr->command.str();
-
-    std::cout << 1 << std::endl;
+    sz = command_line.size();
 
     // Detecting multiple inserts
     if(command_line[0] == '[') {
@@ -202,7 +189,6 @@ void Server::data() {
         break;
       
         case GET:
-          //std::cout << "GETGET" << std::endl;
           result = cache->get(key);
         break;
 
@@ -246,8 +232,6 @@ void Server::data() {
       counter = 0;  
     }
 
-    std::cout << 2 << std::endl;
-
     command = "";
     key = "";
     value = "";
@@ -266,8 +250,6 @@ void Server::data() {
 
     size_t sz_data = result.size();
     strncpy(t_ptr->send_buffer, result.c_str(), sz_data);
-
-    std::cout << 3 << std::endl;
 
     while(1) {      
       int s = write(uid, &t_ptr->send_buffer[t_ptr->offset],  sz_data - t_ptr->offset);
@@ -294,14 +276,14 @@ void Server::data() {
           break;
         }
       } else if(s == 0) {
-        continue;
+        break;
       } else {
         t_ptr->offset += s;
         if(t_ptr->offset == sz_data) break;
       }
     }
 
-    std::cout << 4 << std::endl;
+    t_ptr->terminate = -1;
     result.clear(); 
   }
 }
@@ -389,7 +371,6 @@ int Server::create_and_bind(char * port) {
 }
 
 void Server::clearBuffer(size_t fd) {
-  _mutex_queue.lock();  
   for(std::map<size_t, task_struct *>::iterator it = tasks.begin(); it != tasks.end(); it ++)
   {
     if((size_t)(it->first) == fd)
@@ -398,18 +379,13 @@ void Server::clearBuffer(size_t fd) {
       break;
     }
   }
-  _mutex_queue.unlock();
 }
 
 void Server::rmFD(size_t fd) {
   memset(_buffer_recv, 0, MAX_BUFFER_SIZE);
-  std::cout << "e" << std::endl;
-  _mutex_queue.lock();
   if(tasks.count(fd)) {
-    tasks[fd]->terminate = -1;    
+    tasks[fd]->terminate = -1; 
   } else close(fd);
-  _mutex_queue.unlock();
-  std::cout << "n" << std::endl;
 }
 
 int Server::init(char * port) {
@@ -447,7 +423,7 @@ int Server::init(char * port) {
     for(int i = 0; i < nev; i ++) { 
       memset(_buffer_recv, 0, MAX_BUFFER_SIZE);
 
-      if(events_list[i].flags & EV_EOF) {
+      if(events_list[i].flags & EV_EOF || events_list[i].flags & EV_ERROR) {
         fd = events_list[i].ident;
         EV_SET(&events_set, fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
 
@@ -497,21 +473,29 @@ int Server::init(char * port) {
           terminate = 1;
         }
 
-        std::string st(_buffer_recv);
-        
-        //_mutex_task.lock();
         if(tasks.count(events_list[i].ident)) {
-          tasks[events_list[i].ident]->command << st;
-          tasks[events_list[i].ident]->terminate = terminate;
+          if(tasks[events_list[i].ident]->terminate == 1) {
+            // in processing
+            continue;
+          } else if(tasks[events_list[i].ident]->terminate == -1) {
+            clearBuffer(events_list[i].ident);
+
+            task_struct * ts = new task_struct();
+            ts->offset = 0;
+            ts->command << _buffer_recv;
+            ts->terminate = terminate;
+            tasks[events_list[i].ident] = ts;
+          } else {
+            tasks[events_list[i].ident]->command << _buffer_recv;
+            tasks[events_list[i].ident]->terminate = terminate;
+          }
         } else {
           task_struct * ts = new task_struct();
-          //std::unique_ptr<task_struct> ts(new task_struct());
           ts->offset = 0;
-          ts->command << st;
+          ts->command << _buffer_recv;
           ts->terminate = terminate;
           tasks[events_list[i].ident] = ts;
         }
-        //_mutex_task.unlock();
 
         if (terminate) {
           _request_queue.push(events_list[i].ident);

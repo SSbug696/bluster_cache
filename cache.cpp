@@ -17,16 +17,15 @@ QCache::QCache(size_t size_queue) {
 
 void QCache::_taskDelegateToCommonOperations() {
   while(1) {
-    usleep(20000);
-
+    usleep(100);
     _expireLimitLeave();
   }
 }
 
 void QCache::_taskDelegateToSheduler() {
   while(1) {
-    usleep(100);
     _cacheSheduleResolve();
+    _expireLimitLeave();
   }
 }
 
@@ -46,7 +45,7 @@ std::string QCache::exist(std::string key) {
 //Running watcher of records expires
 void QCache::_runSheduleWorkers() {
   workers_pool.push_back( std::thread(&QCache::_taskDelegateToSheduler, this) );
-  workers_pool.push_back( std::thread(&QCache::_taskDelegateToCommonOperations, this) );
+  //workers_pool.push_back( std::thread(&QCache::_taskDelegateToCommonOperations, this) );
 
   for_each(workers_pool.begin(), workers_pool.end(), [](std::thread & _n) {
     _n.detach();

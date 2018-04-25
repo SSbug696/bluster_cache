@@ -1,12 +1,9 @@
 #include "kqueue_server.h"
 
 Server::Server(size_t max_pool_sz) {
-  //_buffer_recv = new char(MAX_BUFFER_SIZE);
-  memset(&_buffer_recv, 0, sizeof(_buffer_recv));
-
   cache = new QCache(max_pool_sz);
 
-  intitWorkersPool();
+  initWorkersPool();
 
   _min_commands_len["s"] = 3;
   _min_commands_len["g"] = 2;
@@ -42,67 +39,42 @@ void Server::data() {
   bool to_push = false;
   size_t sz = 0;
 
-  char buffer[1024];
-  char tmp_buffer[1024];
+  char buffer[MAX_BUFFER_SIZE];
+  char tmp_buffer[MAX_BUFFER_SIZE];
   std::string command_line;
   size_t expire = 0;
-  task_struct * ptr = 0;
+  size_t uid = 0;
 
-
-  while(1) {
-
-    if(atomic_lock_nr.load() > 0) {
-      atomic_lock_nr.fetch_sub(1, std::memory_order_release);
-    } else {
-      usleep(100);
-      //continue;
-    }
-    
-    // Lock workers
+  // Unlock main loop
+  while(true) {
     std::unique_lock<std::mutex> mlock_rt(_mutex_rw);
-    // Lock queue container for other threads
-    std::unique_lock<std::mutex> mlock_queue(_mutex_queue);
-    
-    // Reset pointer
-    ptr = 0;
+    if(_request_queue.empty()) _writer_cond.wait(mlock_rt);
 
-    // If queue is empty to unlock mutex
-    if(_request_queue.empty()) {
-      
-      mlock_queue.unlock();
-      mlock_rt.unlock();
-      continue;
-    }
+    // Get client ID from
+    uid = _request_queue.back();
+    _request_queue.pop();
+        std::cout << 201 << std::endl;
 
-    ptr = _request_queue.front();
+    //_mutex_task.lock();
+    task_struct * t_ptr = tasks[uid];
 
-    // Remove the last item
-    if(ptr > 0) _request_queue.pop();
+    //std::unique_ptr<task_struct> t_ptr(std::move(tasks[uid]));
+    // Get task struct for current client
+    clearBuffer(uid);
+    _mutex_task.unlock();
 
-    // If ptr getting zero to unlock mutex
-    if(ptr == 0) {
-      mlock_queue.unlock();
-      mlock_rt.unlock();
-      continue;
-    }
-
-    // Unlock mutex
-    mlock_queue.unlock();    
-    mlock_rt.unlock();
+    //std::cout << 101 << std::endl;
 
     // Reset buffers
-    memset(buffer, 0, sizeof(buffer));
-    memset(tmp_buffer, 0, sizeof(tmp_buffer));
+    memset(buffer, 0, MAX_BUFFER_SIZE);
+    memset(tmp_buffer, 0, MAX_BUFFER_SIZE);
 
-    // Get handle client
-    int sock_id = ptr->handle_client;
+    std::cout << 11 << std::endl;
 
-    // Get request text
-    sz = ptr->command.size();
-    command_line = ptr->command.substr(0, sz);
+    sz = t_ptr->command.str().size();
+    command_line = t_ptr->command.str();
 
-    // Free memory
-    delete ptr;
+    std::cout << 1 << std::endl;
 
     // Detecting multiple inserts
     if(command_line[0] == '[') {
@@ -134,7 +106,6 @@ void Server::data() {
     
 
     for(size_t k = 0; k < sz_inserts; k ++) {
-      
       // Set default command value
       command_line = multi_parts[k];
       sz = command_line.size();
@@ -209,7 +180,10 @@ void Server::data() {
         }
       }
 
-      std::unique_lock<std::mutex> mlock_cache(_mutex_cache);
+      // Synchronizing threads
+      _mutex_cache.lock();
+
+      memset(tmp_buffer, 0, sizeof(tmp_buffer));
 
       switch(COMMAND_ID) {
         case SET:
@@ -219,8 +193,6 @@ void Server::data() {
               expire = atoi( exp_label.c_str() );
             }
           }
-
-          //std::cout << key << " " << value << " " << expire;
           // If expire is not defined
           if(expire != 0) {
             result = cache->put(key, value, expire);
@@ -230,6 +202,7 @@ void Server::data() {
         break;
       
         case GET:
+          //std::cout << "GETGET" << std::endl;
           result = cache->get(key);
         break;
 
@@ -262,7 +235,7 @@ void Server::data() {
         break;
       }
 
-      mlock_cache.unlock();
+      _mutex_cache.unlock();
 
       // Clear string vector
       string_parts.clear();
@@ -273,6 +246,7 @@ void Server::data() {
       counter = 0;  
     }
 
+    std::cout << 2 << std::endl;
 
     command = "";
     key = "";
@@ -290,29 +264,50 @@ void Server::data() {
     to_push = false;
     sz = 0;
 
-    // Forwarding to new line
-    result.append("\n");
+    size_t sz_data = result.size();
+    strncpy(t_ptr->send_buffer, result.c_str(), sz_data);
 
-    size_t szs =  result.size();
+    std::cout << 3 << std::endl;
 
-    memset(buffer, 0, sizeof(buffer));
-    strncpy(buffer, result.c_str(), sizeof(buffer));
+    while(1) {      
+      int s = write(uid, &t_ptr->send_buffer[t_ptr->offset],  sz_data - t_ptr->offset);
+      if(s == -1) {
+        if(errno == EIO) {
+          std::cerr << "A low-level I/O error occurred" << std::endl;
+          break;
+        }
 
-    buffer[ sizeof(buffer) - 1 ] = 0;
+        if(errno == EFAULT) {
+          std::cerr << "Buffer is outside your accessible address space" << std::endl;
+          break;
+        }
 
+        if(errno == EBADF) {
+          std::cerr << "Is not valid file descriptor" << std::endl;
+          break;
+        }
+
+        // Try again
+        if(errno == EWOULDBLOCK || errno == EAGAIN) {
+          continue;
+        } else {
+          break;
+        }
+      } else if(s == 0) {
+        continue;
+      } else {
+        t_ptr->offset += s;
+        if(t_ptr->offset == sz_data) break;
+      }
+    }
+
+    std::cout << 4 << std::endl;
     result.clear(); 
-    result = "";
-          
-    std::unique_lock<std::mutex> mlock_rt_write(_mutex_rw);
-
-
-    mlock_rt_write.unlock();
   }
 }
 
-void Server::intitWorkersPool() {
-  //for(size_t i = 0; i < WORKERS_POOL; ++i) 
-  _thread_pool.push_back(std::thread(&Server::data, this));
+void Server::initWorkersPool() {
+  for(size_t i = 0; i < WORKERS_POOL; ++i) 
   _thread_pool.push_back(std::thread(&Server::data, this));
 
   std::vector<std::thread>::iterator it = _thread_pool.begin();
@@ -326,14 +321,14 @@ int Server::make_socket_non_blocking(int sfd) {
 
   flags = fcntl (sfd, F_GETFL, 0);
   if(flags == -1) {
-    perror ("fcntl");
+    std::cerr << "fcntl" << std::endl;
     return -1;
   }
 
   flags |= O_NONBLOCK;
   s = fcntl (sfd, F_SETFL, flags);
   if(s == -1) {
-    perror ("fcntl");
+    std::cerr << "fcntl" << std::endl;
     return -1;
   }
 
@@ -366,7 +361,7 @@ int Server::create_and_bind(char * port) {
 
   s = getaddrinfo(NULL, port, &hints, &result);
   if(s != 0) {
-    fprintf (stderr, "getaddrinfo: %s\n", gai_strerror (s));
+    std::cerr << "getaddrinfo:"<< gai_strerror(s) << std::endl;
     return -1;
   }
 
@@ -385,7 +380,7 @@ int Server::create_and_bind(char * port) {
   }
 
   if (rp == NULL) {
-    fprintf (stderr, "Could not bind\n");
+    std::cerr << "Could not bind" << std::endl;
     return -1;
   }
 
@@ -393,47 +388,75 @@ int Server::create_and_bind(char * port) {
   return sfd;
 }
 
+void Server::clearBuffer(size_t fd) {
+  _mutex_queue.lock();  
+  for(std::map<size_t, task_struct *>::iterator it = tasks.begin(); it != tasks.end(); it ++)
+  {
+    if((size_t)(it->first) == fd)
+    {
+      tasks.erase(it);
+      break;
+    }
+  }
+  _mutex_queue.unlock();
+}
+
+void Server::rmFD(size_t fd) {
+  memset(_buffer_recv, 0, MAX_BUFFER_SIZE);
+  std::cout << "e" << std::endl;
+  _mutex_queue.lock();
+  if(tasks.count(fd)) {
+    tasks[fd]->terminate = -1;    
+  } else close(fd);
+  _mutex_queue.unlock();
+  std::cout << "n" << std::endl;
+}
+
 int Server::init(char * port) {
+  short int terminate = 0;
+  _atomic_lock_nr = false;
+
   int local_s = create_and_bind(port);
   int fd = make_socket_non_blocking(local_s);
   if (fd == -1) {
-    perror("invalid create FD");
+    std::runtime_error("Error create fd");
   }
   
   s = listen(local_s, SOMAXCONN);
-  if(s == -1) 
-    perror("invalid listen socket");
+  if(s == -1) {
+    std::runtime_error("Error of listen socket");
+    return -1;
+  }
 
   int kq = kqueue();
-  EV_SET(&events_set, local_s, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
-  if(kevent(kq, &events_set, 1, NULL, 0, NULL) == -1)
-    perror("accept");
+  EV_SET(&events_set, local_s, EVFILT_READ | EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
+  
+  if(kevent(kq, &events_set, 1, NULL, 0, NULL) == -1) {
+    std::runtime_error("Accept error");
+    return -1;
+  }
 
   while(1) {
-    // watch core event
+    terminate = 0;
+    // Watch core event
     int nev = kevent(kq, NULL, 0, events_list, 32, NULL);
 
     if (nev < 1)
-      perror("accept");
+      std::clog << "Accept" << std::endl;
 
-    for(int i = 0; i < nev; i ++) {
-
-      // std::cout << i << std::endl;
+    for(int i = 0; i < nev; i ++) { 
+      memset(_buffer_recv, 0, MAX_BUFFER_SIZE);
 
       if(events_list[i].flags & EV_EOF) {
-        printf("disconnect\n");
-
         fd = events_list[i].ident;
         EV_SET(&events_set, fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
 
         if(kevent(kq, &events_set, 1, NULL, 0, NULL) == -1)
-          perror("error of close socket");
+          std::cerr << "Error of close socket" << std::endl;
         
-        close(fd);
-
+        rmFD(fd);
+        continue;
       } else if(events_list[i].ident == local_s) {
-        std::cout << "new client" << std::endl;
-        // New request accepted
         struct sockaddr in_addr;
         socklen_t in_len;
         int infd;
@@ -442,22 +465,21 @@ int Server::init(char * port) {
 
         infd = accept(events_list[i].ident, &in_addr, &in_len);
         if (infd == -1) {
-          perror("accept error");
+          std::cerr << "Accept error" << std::endl;
           continue;
         }
         
         int fd = make_socket_non_blocking(infd);
         if (fd == -1) {
-         perror("invalid create FD");
+         std::cerr << "Invalid create FD" << std::endl;
         }
 
         EV_SET(&events_set, infd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
         if (kevent(kq, &events_set, 1, NULL, 0, NULL) == -1)
-          perror("kevent");
-
+          std::cerr << "Kevent error" << std::endl;
+          
       } else  {
-        _recv_bytes_count = read(events_list[i].ident, _buffer_recv, sizeof(_buffer_recv));
-               
+        _recv_bytes_count = read(events_list[i].ident, _buffer_recv, MAX_BUFFER_SIZE);
         // If 0 to send SIG of HUP socket
         if(_recv_bytes_count == 0) {
           continue;
@@ -466,22 +488,38 @@ int Server::init(char * port) {
             continue;
           } else {
             // Close descriptor
-            close(events_list[i].ident);
+            rmFD(events_list[i].ident);
             continue;
           }
+        } 
+
+        if(_buffer_recv[_recv_bytes_count] == '\0') {
+          terminate = 1;
         }
+
+        std::string st(_buffer_recv);
         
-        std::string str(_buffer_recv);
+        //_mutex_task.lock();
+        if(tasks.count(events_list[i].ident)) {
+          tasks[events_list[i].ident]->command << st;
+          tasks[events_list[i].ident]->terminate = terminate;
+        } else {
+          task_struct * ts = new task_struct();
+          //std::unique_ptr<task_struct> ts(new task_struct());
+          ts->offset = 0;
+          ts->command << st;
+          ts->terminate = terminate;
+          tasks[events_list[i].ident] = ts;
+        }
+        //_mutex_task.unlock();
 
-        task_struct * ts = new task_struct();
-        ts->command = str;
-        ts->handle_client = i;
+        if (terminate) {
+          _request_queue.push(events_list[i].ident);
+          _writer_cond.notify_one();
+        }
 
-        memset(_buffer_recv, 0, sizeof(_buffer_recv));
-        atomic_lock_nr.fetch_add(1, std::memory_order_relaxed);
-        std::unique_lock<std::mutex> mlock_queue(_mutex_queue);
-        _request_queue.push(ts);
-        mlock_queue.unlock(); 
+        terminate = 0;
+        memset(_buffer_recv, 0, MAX_BUFFER_SIZE);
       }
     }
   }

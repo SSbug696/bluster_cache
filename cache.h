@@ -89,7 +89,7 @@ class QCache {
     // Hash buffer for quiqly access
     std::unordered_map<std::string, std::string> _kv_tmp;
     // Hash for control expire time
-    std::map<size_t, std::unordered_map<std::string, size_t>> _expires_leave;
+    std::map<size_t, std::unordered_map<std::string, size_t> > _expires_leave;
     // Queue for records structs
     std::queue<NodeAction *> _sheduler_buffer;
 

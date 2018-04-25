@@ -22,57 +22,64 @@
 #include <queue>
 #include <vector>
 #include <atomic>
+#include <map>
 
 #include "cache.h"
 
-class Server {
-  const size_t MAXEVENTS = 64;
-  const size_t WORKERS_POOL = 1;
-  const size_t MAX_BUFFER_SIZE = 8000000;
-  enum  actions { UNKNOWN = 0, ERR, SET, GET, DEL, EXIST, FLUSH, SIZE };
-  std::atomic<long long> atomic_lock_nr;
 
+#define MAX_BUFFER_SIZE 4096
+#define MAXEVENTS 10
+#define WORKERS_POOL 1
+
+
+
+class Server {
+  enum  actions { UNKNOWN = 0, ERR, SET, GET, DEL, EXIST, FLUSH, SIZE };
+
+  std::condition_variable _writer_cond, _recv_cond;
+  std::atomic<bool> _atomic_lock_nr;
   // Minimum command length
   std::map<std::string, size_t> _min_commands_len;
   std::map<std::string, size_t> _assoc_dict_commands;
-
+  std::queue<size_t>  _request_queue;
+  
   // Task struct
   struct task_struct {
-    std::string command;
-    size_t handle_client;
+    std::stringstream command;
+    char send_buffer[MAX_BUFFER_SIZE];
+    size_t offset;
+    short int terminate;
   };
+
+  std::map<size_t, task_struct *> tasks;
 
   int sfd, s;
   int efd;
 
   struct kevent events_set;
-  struct kevent events_list[32];
+  struct kevent events_list[MAXEVENTS];
 
   QCache * cache;
   std::vector<std::thread> _thread_pool;
-  std::queue<task_struct *> _request_queue;
 
   std::mutex _mutex_rw;
   std::mutex _mutex_cache;
-  std::mutex _mutex_queue;
+  std::mutex _mutex_queue, _mutex_task;
 
   ssize_t _recv_bytes_count;
-  char _buffer_recv[100000];
+  char _buffer_recv[MAX_BUFFER_SIZE];
 
   int make_socket_non_blocking(int);
   int create_and_bind (char *);
-  void intitWorkersPool();
+  void initWorkersPool();
   void data();
+  void rmFD(size_t);
+  void clearBuffer(size_t);
 
 public:
   Server(size_t);
-//   int conn_index(int);
-//   int conn_add(int);
-//   int conn_delete(int);
-
   ~Server() {
     delete cache;
-    //free(events);
   }
 
   int init(char *);

@@ -6,9 +6,11 @@
 # Prerequisites
 *.d
 
+./src
 *.log
 *.cmake
 ./CMakeFiles
+./CMakeFiles/*
 ./Makefile
 CMakeCache.txt
 

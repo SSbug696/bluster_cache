@@ -19,35 +19,19 @@
 #include <atomic>
 
 class QCache {
-  public:
-    /*
-      Override methods PUT for expire parameter
-     */
-    std::string put(std::string, std::string, size_t);
-    std::string put(std::string, std::string);
-    std::string get(std::string);
-    std::string del(std::string);
-    std::string flush();
-    std::string size();
-    std::string exist(std::string);
-    std::atomic<size_t> atomic_lock_nr;
-
-    QCache(size_t);
-
-  private:
     // ID's of action
     enum  actions { WRITE = 1, REMOVE_ONCE, REMOVE_ALL, GET_ALL };
-
-    // Max size of pool records and current sequence
+    const size_t TRATE_CHECK_TTL = 250000;
+    const size_t TRATE_CHECK_BF = 200000;
     int _limit, _current_sz;
-    size_t _sleep_active;
+
+    const std::string ONE = "1";
+    const std::string ZERO = "0";
     
     // Workers pool
     std::vector<std::thread> workers_pool;
-
     // Mutex for locking resources
     std::mutex _mutex_crl;
-    std::mutex _mutex_w;
     std::mutex _mutex_rw;
 
     // Double-linked list for quick displacement
@@ -66,8 +50,6 @@ class QCache {
         val = "";
         key = "";
       }
-
-      ~List() {/*pass*/}
     };
 
     // Record stuct
@@ -83,6 +65,10 @@ class QCache {
       std::string key;
       size_t action;
     };
+
+    std::map<size_t, std::unordered_map<std::string, size_t>>::iterator it;
+    std::unordered_map<std::string, size_t>::iterator v_iter;
+    std::map<std::string, size_t>::iterator it_lock;
 
     // Hash in mem persisting
     std::unordered_map<std::string, List *> _kv_map;
@@ -100,19 +86,31 @@ class QCache {
     List * _first;
     List * _last;
 
-    char buffer_wraped_string[1024];
-    void _write(std::string, std::string, size_t);
-
+    //char _buffer_wraped_string[1024];
+    inline void write(std::string &&, std::string &&, size_t);
     // Method with mutex trigger for access to records
-    std::string _lockedKeyAccess(std::string, size_t);
+    inline std::string to_lock_key(std::string, size_t);
     
-    void _taskDelegateToCommonOperations();
-    void _taskDelegateToSheduler();
-    std::string _strWrap(std::string);
-    std::string _strWrap(std::string, size_t);
+    void ttl_shedule();
+    void ops_sheduler();
 
-    void _runSheduleWorkers();
-    void _vacuumCache(std::string);
-    void _expireLimitLeave();
-    void _cacheSheduleResolve();
+    void run_workers_shedule();
+    inline void do_vacuum_cache(std::string);
+    inline void check_expire();
+    inline void ops_resolve();
+
+    public:
+    /*
+      Override methods PUT for expire parameter
+     */
+      std::string put(std::string &&, std::string &&, size_t);
+      std::string put(std::string &&, std::string &&);
+      std::string get(std::string &&);
+      std::string del(std::string &&);
+      std::string flush();
+      std::string size();
+      std::string exist(std::string &&);
+      std::atomic<size_t> atomic_lock_nr;
+      
+      QCache(size_t);
 };

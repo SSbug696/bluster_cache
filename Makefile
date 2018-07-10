@@ -48,10 +48,10 @@ RM = /usr/local/Cellar/cmake/3.9.4_1/bin/cmake -E remove -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = "/Users/ssbug20 1/Desktop/work/bluster_cache"
+CMAKE_SOURCE_DIR = "/Users/ssbug20 1/desktop/work/bluster_cache"
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = "/Users/ssbug20 1/Desktop/work/bluster_cache"
+CMAKE_BINARY_DIR = "/Users/ssbug20 1/desktop/work/bluster_cache"
 
 #=============================================================================
 # Targets provided globally by CMake.
@@ -80,9 +80,9 @@ edit_cache/fast: edit_cache
 
 # The main all target
 all: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start "/Users/ssbug20 1/Desktop/work/bluster_cache/CMakeFiles" "/Users/ssbug20 1/Desktop/work/bluster_cache/CMakeFiles/progress.marks"
+	$(CMAKE_COMMAND) -E cmake_progress_start "/Users/ssbug20 1/desktop/work/bluster_cache/CMakeFiles" "/Users/ssbug20 1/desktop/work/bluster_cache/CMakeFiles/progress.marks"
 	$(MAKE) -f CMakeFiles/Makefile2 all
-	$(CMAKE_COMMAND) -E cmake_progress_start "/Users/ssbug20 1/Desktop/work/bluster_cache/CMakeFiles" 0
+	$(CMAKE_COMMAND) -E cmake_progress_start "/Users/ssbug20 1/desktop/work/bluster_cache/CMakeFiles" 0
 .PHONY : all
 
 # The main clean target
@@ -123,33 +123,6 @@ src/fast:
 	$(MAKE) -f CMakeFiles/src.dir/build.make CMakeFiles/src.dir/build
 .PHONY : src/fast
 
-cache.o: cache.cpp.o
-
-.PHONY : cache.o
-
-# target to build an object file
-cache.cpp.o:
-	$(MAKE) -f CMakeFiles/src.dir/build.make CMakeFiles/src.dir/cache.cpp.o
-.PHONY : cache.cpp.o
-
-cache.i: cache.cpp.i
-
-.PHONY : cache.i
-
-# target to preprocess a source file
-cache.cpp.i:
-	$(MAKE) -f CMakeFiles/src.dir/build.make CMakeFiles/src.dir/cache.cpp.i
-.PHONY : cache.cpp.i
-
-cache.s: cache.cpp.s
-
-.PHONY : cache.s
-
-# target to generate assembly for a file
-cache.cpp.s:
-	$(MAKE) -f CMakeFiles/src.dir/build.make CMakeFiles/src.dir/cache.cpp.s
-.PHONY : cache.cpp.s
-
 kqueue_server.o: kqueue_server.cpp.o
 
 .PHONY : kqueue_server.o
@@ -176,6 +149,87 @@ kqueue_server.s: kqueue_server.cpp.s
 kqueue_server.cpp.s:
 	$(MAKE) -f CMakeFiles/src.dir/build.make CMakeFiles/src.dir/kqueue_server.cpp.s
 .PHONY : kqueue_server.cpp.s
+
+log.o: log.cpp.o
+
+.PHONY : log.o
+
+# target to build an object file
+log.cpp.o:
+	$(MAKE) -f CMakeFiles/src.dir/build.make CMakeFiles/src.dir/log.cpp.o
+.PHONY : log.cpp.o
+
+log.i: log.cpp.i
+
+.PHONY : log.i
+
+# target to preprocess a source file
+log.cpp.i:
+	$(MAKE) -f CMakeFiles/src.dir/build.make CMakeFiles/src.dir/log.cpp.i
+.PHONY : log.cpp.i
+
+log.s: log.cpp.s
+
+.PHONY : log.s
+
+# target to generate assembly for a file
+log.cpp.s:
+	$(MAKE) -f CMakeFiles/src.dir/build.make CMakeFiles/src.dir/log.cpp.s
+.PHONY : log.cpp.s
+
+qcache.o: qcache.cpp.o
+
+.PHONY : qcache.o
+
+# target to build an object file
+qcache.cpp.o:
+	$(MAKE) -f CMakeFiles/src.dir/build.make CMakeFiles/src.dir/qcache.cpp.o
+.PHONY : qcache.cpp.o
+
+qcache.i: qcache.cpp.i
+
+.PHONY : qcache.i
+
+# target to preprocess a source file
+qcache.cpp.i:
+	$(MAKE) -f CMakeFiles/src.dir/build.make CMakeFiles/src.dir/qcache.cpp.i
+.PHONY : qcache.cpp.i
+
+qcache.s: qcache.cpp.s
+
+.PHONY : qcache.s
+
+# target to generate assembly for a file
+qcache.cpp.s:
+	$(MAKE) -f CMakeFiles/src.dir/build.make CMakeFiles/src.dir/qcache.cpp.s
+.PHONY : qcache.cpp.s
+
+rrlist.o: rrlist.cpp.o
+
+.PHONY : rrlist.o
+
+# target to build an object file
+rrlist.cpp.o:
+	$(MAKE) -f CMakeFiles/src.dir/build.make CMakeFiles/src.dir/rrlist.cpp.o
+.PHONY : rrlist.cpp.o
+
+rrlist.i: rrlist.cpp.i
+
+.PHONY : rrlist.i
+
+# target to preprocess a source file
+rrlist.cpp.i:
+	$(MAKE) -f CMakeFiles/src.dir/build.make CMakeFiles/src.dir/rrlist.cpp.i
+.PHONY : rrlist.cpp.i
+
+rrlist.s: rrlist.cpp.s
+
+.PHONY : rrlist.s
+
+# target to generate assembly for a file
+rrlist.cpp.s:
+	$(MAKE) -f CMakeFiles/src.dir/build.make CMakeFiles/src.dir/rrlist.cpp.s
+.PHONY : rrlist.cpp.s
 
 server_init.o: server_init.cpp.o
 
@@ -213,12 +267,18 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... edit_cache"
 	@echo "... src"
-	@echo "... cache.o"
-	@echo "... cache.i"
-	@echo "... cache.s"
 	@echo "... kqueue_server.o"
 	@echo "... kqueue_server.i"
 	@echo "... kqueue_server.s"
+	@echo "... log.o"
+	@echo "... log.i"
+	@echo "... log.s"
+	@echo "... qcache.o"
+	@echo "... qcache.i"
+	@echo "... qcache.s"
+	@echo "... rrlist.o"
+	@echo "... rrlist.i"
+	@echo "... rrlist.s"
 	@echo "... server_init.o"
 	@echo "... server_init.i"
 	@echo "... server_init.s"

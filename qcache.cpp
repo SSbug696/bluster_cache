@@ -1,4 +1,4 @@
-#include "cache.h"
+#include "qcache.h"
 
 QCache::QCache(size_t size_queue) {
   _limit      = size_queue;
@@ -6,26 +6,23 @@ QCache::QCache(size_t size_queue) {
   _first      = 0;
   _last       = 0;
 
-  memset(buffer_wraped_string, 0, sizeof(buffer_wraped_string));
-  _runSheduleWorkers();
-
+  run_workers_shedule();
   std::unordered_map<std::string, size_t> map_expire_disable;
   // Set map for old node. This hash can't be removed
-  _expires_leave[1] = map_expire_disable;
-  _sleep_active = 1000;       
+  _expires_leave[1] = map_expire_disable;    
 }
 
-void QCache::_taskDelegateToCommonOperations() {
+void QCache::ttl_shedule() {
   while(1) {
-    usleep(20);
-    _expireLimitLeave();
+    usleep(TRATE_CHECK_TTL);
+    check_expire();
   }
 }
 
-void QCache::_taskDelegateToSheduler() {
+void QCache::ops_sheduler() {
   while(1) {
-    usleep(20);
-    _cacheSheduleResolve();
+    usleep(TRATE_CHECK_BF);
+    ops_resolve();
   }
 }
 
@@ -33,34 +30,33 @@ std::string QCache::size() {
   return std::to_string( _kv_map.size() );
 }
 
-
-std::string QCache::exist(std::string key) {
-  std::string result = get(key);
+std::string QCache::exist(std::string && key) {
+  std::string result = get(std::forward<std::string>( key ));
   
   if(result != "(null)") {
-    return "1";
-  } else return "0";
+    return ONE;
+  } else return ZERO;
 }
 
 //Running watcher of records expires
-void QCache::_runSheduleWorkers() {
-  workers_pool.push_back( std::thread(&QCache::_taskDelegateToSheduler, this) );
-  workers_pool.push_back( std::thread(&QCache::_taskDelegateToCommonOperations, this) );
+void QCache::run_workers_shedule() {
+  workers_pool.push_back( std::thread(&QCache::ops_sheduler, this) );
+  workers_pool.push_back( std::thread(&QCache::ttl_shedule, this) );
 
   for_each(workers_pool.begin(), workers_pool.end(), [](std::thread & _n) {
     _n.detach();
   });
 }
 
-std::string QCache::get(std::string key) {
+std::string QCache::get(std::string && key) {
   std::unique_lock<std::mutex> mlock(_mutex_crl);
-  std::string val = _lockedKeyAccess(key, 1);
+  std::string val = to_lock_key(key, 1);
   mlock.unlock();
   return val; 
 }
 
 // Push task to queue
-std::string QCache::put(std::string key, std::string val) {
+std::string QCache::put(std::string && key, std::string && val) {
   NodeAction * ptr = new NodeAction();
   ptr->key = key;
   ptr->val = val;
@@ -69,12 +65,14 @@ std::string QCache::put(std::string key, std::string val) {
 
   _kv_tmp[key] = val;
   
+  std::unique_lock<std::mutex> mlock(_mutex_rw);
   _sheduler_buffer.push(ptr);
-
-  return "1";
+  mlock.unlock();
+  
+  return ONE;
 }
 
-std::string QCache::del(std::string key) {
+std::string QCache::del(std::string && key) {
   NodeAction * ptr = new NodeAction();
   ptr->key = key;
   ptr->type_action = REMOVE_ONCE;
@@ -82,8 +80,8 @@ std::string QCache::del(std::string key) {
   _sheduler_buffer.push(ptr);
 
   if( _kv_map.count(key) ) {
-    return "1";
-  } else return "0";
+    return ONE;
+  } else return ZERO;
 }
 
 std::string QCache::flush() {
@@ -91,27 +89,29 @@ std::string QCache::flush() {
   ptr->type_action = REMOVE_ALL;
   
   _sheduler_buffer.push(ptr);
-  return "1";
+  return ONE;
 }
 
 // Push task to queue
-std::string QCache::put(std::string key, std::string val, size_t expire) {
+std::string QCache::put(std::string && key, std::string && val, size_t expire) {
   NodeAction * ptr = new NodeAction();
   ptr->key = key;
   ptr->val = val;
   ptr->expire = expire;
-
   ptr->type_action = WRITE;
 
   _kv_tmp[key] = val;
-
   _sheduler_buffer.push(ptr);
 
-  return "1";
+  return ONE;
 }
 
 // Set to delete queue for old node
-void QCache::_expireLimitLeave() {
+void QCache::check_expire() {
+  if(_expires_leave.empty()) {
+    return;
+  }
+
   // Break iteration fir empty hash table
   std::unique_lock<std::mutex> mlock(_mutex_rw);
 
@@ -119,21 +119,21 @@ void QCache::_expireLimitLeave() {
     mlock.unlock();
     return;
   }
-
+  
   size_t time_stamp = time(NULL);
 
-  std::map<size_t, std::unordered_map<std::string, size_t>>::iterator it = _expires_leave.begin();  
+  it = _expires_leave.begin();   
   // Node with current timestamp is found 
 
   for(;it != _expires_leave.end();) {
     // Iterator for each node 
-    std::unordered_map<std::string, size_t>::iterator v_iter = it->second.begin();
+    v_iter = it->second.begin();
 
     for(;v_iter != it->second.end(); ) {
       // Remove duplication in the buffer, counter for blocked nodes
       if(v_iter->second <= time_stamp && v_iter->second > 0 ) { 
         // Guard for pair set/get       
-        _vacuumCache(v_iter->first);
+        do_vacuum_cache(v_iter->first);
 
         v_iter->second = 0;
 
@@ -147,7 +147,8 @@ void QCache::_expireLimitLeave() {
     it++;
   }
 
-  std::map<std::string, size_t>::iterator it_lock = _map_locked.begin();
+  //std::map<std::string, size_t>::iterator it_lock 
+  it_lock = _map_locked.begin();
   for(;it_lock != _map_locked.end(); it_lock ++) {
     if(_expires_leave.count(it_lock->second)) {
 
@@ -166,33 +167,27 @@ void QCache::_expireLimitLeave() {
 }
 
 // Set values in queue from main input stream
-void QCache::_cacheSheduleResolve() {
+void QCache::ops_resolve() {
   NodeAction * ptr = 0;
-  
-  // Sync with pool records
   std::unique_lock<std::mutex> mlock(_mutex_rw);
 
+  // Sync with pool records
   while( !_sheduler_buffer.empty() ) {
     ptr = _sheduler_buffer.front();
-    
+
     if(ptr == 0) continue;
-        
-    _sheduler_buffer.pop();
-
+    
     std::unique_lock<std::mutex> mlock_crl(_mutex_crl);
-
     switch(ptr->type_action) {
-      
       case WRITE:
-        _write(ptr->key, ptr->val, ptr->expire);
+        write(std::move(ptr->key), std::move(ptr->val), ptr->expire);
       break;
 
       case REMOVE_ONCE:
-        _vacuumCache(ptr->key);
+        do_vacuum_cache(ptr->key);
       break;
 
       case REMOVE_ALL:
-
         _expires_leave.clear();
         _kv_map.clear();
         _kv_tmp.clear();
@@ -203,43 +198,28 @@ void QCache::_cacheSheduleResolve() {
 
         _last = 0;
         _first = 0;
-
       break;
     }
-
     mlock_crl.unlock(); 
+
+    _sheduler_buffer.pop();
   }
 
   mlock.unlock();
 }
 
-std::string QCache::_strWrap(std::string str) {
-  std::stringstream ss;
-  ss << "\"" << str << "\"";
-  return ss.str();
-}
-
-std::string QCache::_strWrap(std::string source_str, size_t i) {
-  sprintf(buffer_wraped_string, "\"%s\"", source_str.c_str());
-  std::string s(buffer_wraped_string);
-  // Flush buffer
-  memset(buffer_wraped_string, 0, sizeof(buffer_wraped_string));
-  return s;
-}
-
-std::string QCache::_lockedKeyAccess(std::string key, size_t type) {
-
+std::string QCache::to_lock_key(std::string key, size_t type) {
   if(type == 1) {   
     if(_kv_map.count(key)) {
       if(_kv_tmp.count(key)) {
         _kv_tmp.erase(key);
       } 
 
-      return _strWrap(_kv_map[key]->val, 1);  
+      return _kv_map[key]->val;  
     
     } else if(_kv_tmp.count(key)) {
     
-      return _strWrap(_kv_tmp[key], 1);
+      return _kv_tmp[key];
     }
 
   } else if(type == 2) {
@@ -257,7 +237,7 @@ std::string QCache::_lockedKeyAccess(std::string key, size_t type) {
 }
 
 // Clear node by key
-void QCache::_vacuumCache(std::string key) {
+void QCache::do_vacuum_cache(std::string key) {
   // If current key isn't exist
   if( _kv_map.count(key) == 0 ) {
     return;
@@ -300,11 +280,11 @@ void QCache::_vacuumCache(std::string key) {
     }
   }
 
-  _lockedKeyAccess(key, 2); 
+  to_lock_key(key, 2); 
 }
 
 // Write data to cache
-void QCache::_write(std::string key, std::string val, size_t expire) {
+void QCache::write(std::string && key, std::string && val, size_t expire) {
   // Get current timestamp
   size_t time_stamp = time(NULL);
   // Get time of last tick for record
@@ -330,7 +310,6 @@ void QCache::_write(std::string key, std::string val, size_t expire) {
     _kv_map[key] = target_node;
 
   } else {
-
     // If node is founded and have other date else break
     if(_kv_map.count(key) > 0) {
       target_node = _kv_map[key];
@@ -411,7 +390,7 @@ void QCache::_write(std::string key, std::string val, size_t expire) {
   target_node = _last;
   while( _kv_map.size() > _limit && target_node) { 
     // Removing the сache tail
-    _vacuumCache(target_node->key);
+    do_vacuum_cache(target_node->key);
     target_node = target_node->prev;
   }
 

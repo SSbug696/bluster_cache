@@ -131,9 +131,7 @@ void Server::data() {
     size_t sz_inserts = multi_parts.size();
     counter = 0;
     
-
     for(size_t k = 0; k < sz_inserts; k ++) {
-      
       // Set default command value
       command_line = multi_parts[k];
       sz = command_line.size();
@@ -153,7 +151,7 @@ void Server::data() {
 
           // Remove double quote for command and key
           if((command_line[i] == '"') && counter <= 1) {
-            // pastream_tmp
+            // pass
           } else {
             tmp_buffer[chr_counter ++] = command_line[i];
           }
@@ -182,12 +180,12 @@ void Server::data() {
         }
       }
 
+      //?? std::cout << " OO:: " << string_parts[0] << std::endl;
       //  Get command ID
       COMMAND_ID = _assoc_dict_commands[ string_parts[0] ];
 
       //  Command escaping error
       if(is_quote_substring) {
-        // Ignore cicle
         counter = 0;
         command = "err";
       }
@@ -208,44 +206,46 @@ void Server::data() {
         }
       }
 
-      std::unique_lock<std::mutex> mlock_cache(_mutex_cache);
+      // Synchronizing threads
+      _mutex_cache.lock();
+
+      memset(tmp_buffer, 0, sizeof(tmp_buffer));
 
       switch(COMMAND_ID) {
         case SET:
-          if( assets.size() > 0) {
+          if(assets.size() > 0) {
             std::string exp_label = assets.front();
             if( strspn( exp_label.c_str(), "0123456789" ) == exp_label.size() ) {
               expire = atoi( exp_label.c_str() );
             }
           }
-
-          //std::cout << key << " " << value << " " << expire;
+          
           // If expire is not defined
           if(expire != 0) {
-            result = cache->put(key, value, expire);
+            result = _cache->put(std::move(key), std::move(value), expire);
           } else {
-            result = cache->put(key, value);
+            result = _cache->put(std::move(key), std::move(value));
           }
         break;
       
         case GET:
-          result = cache->get(key);
+          result = _cache->get(std::move(key));
         break;
 
         case DEL:
-          result = cache->del(key);
+          result = _cache->del(std::move(key));
         break;
 
         case FLUSH:
-          result = cache->flush();
+          result = _cache->flush();
         break;
 
         case SIZE:
-          result = cache->size();
+          result = _cache->size();
         break;
       
         case EXIST:
-          result = cache->exist(key);
+          result = _cache->exist(std::move(key));
         break;
 
         case UNKNOWN:
@@ -261,7 +261,7 @@ void Server::data() {
         break;
       }
 
-      mlock_cache.unlock();
+      _mutex_cache.unlock();
 
       // Clear string vector
       string_parts.clear();
@@ -289,6 +289,7 @@ void Server::data() {
     to_push = false;
     sz = 0;
 
+
     // Forwarding to new line
     result.append("\n");
 
@@ -310,7 +311,6 @@ void Server::data() {
       ) {
 
       close(events[sock_id].data.fd);
-
     } else {
 
       while(1) {
@@ -338,7 +338,6 @@ void Server::data() {
 
         break;
       }
-
     }
 
     mlock_rt_write.unlock();
@@ -347,7 +346,7 @@ void Server::data() {
 
 void Server::intitWorkersPool() {
   //for(size_t i = 0; i < WORKERS_POOL; ++i) 
-  _thread_pool.push_back(std::thread(&Server::data, this));
+  //_thread_pool.push_back(std::thread(&Server::data, this));
   _thread_pool.push_back(std::thread(&Server::data, this));
 
   std::vector<std::thread>::iterator it = _thread_pool.begin();
@@ -544,7 +543,7 @@ int Server::init(char * port) {
         std::string str(_buffer_recv);
 
         task_struct * ts = new task_struct();
-        ts->command = str;
+        ts->command = _buffer_recv;
         ts->handle_client = i;
 
         memset(_buffer_recv, 0, sizeof(_buffer_recv));

@@ -1,1 +1,0 @@
-/Library/Developer/CommandLineTools/usr/bin/c++   -std=c++11 -flto -O2 -fstrict-aliasing -Wall -pedantic -Wl,-search_paths_first -Wl,-headerpad_max_install_names  CMakeFiles/src.dir/qcache.cpp.o CMakeFiles/src.dir/kqueue_server.cpp.o CMakeFiles/src.dir/server_init.cpp.o CMakeFiles/src.dir/rrlist.cpp.o CMakeFiles/src.dir/log.cpp.o  -o src 

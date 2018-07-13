@@ -14,8 +14,8 @@ QCache::QCache(size_t size_queue) {
 
 void QCache::ttl_shedule() {
   while(1) {
-    usleep(TRATE_CHECK_TTL);
-    check_expire();
+    //usleep(TRATE_CHECK_TTL);
+    //check_expire();
   }
 }
 
@@ -38,7 +38,7 @@ std::string QCache::exist(std::string && key) {
   } else return ZERO;
 }
 
-//Running watcher of records expires
+// Running watcher of records expires
 void QCache::run_workers_shedule() {
   workers_pool.push_back( std::thread(&QCache::ops_sheduler, this) );
   workers_pool.push_back( std::thread(&QCache::ttl_shedule, this) );
@@ -65,10 +65,7 @@ std::string QCache::put(std::string && key, std::string && val) {
 
   _kv_tmp[key] = val;
   
-  std::unique_lock<std::mutex> mlock(_mutex_rw);
-  _sheduler_buffer.push(ptr);
-  mlock.unlock();
-  
+  _sheduler_buffer.push(ptr);  
   return ONE;
 }
 
@@ -123,8 +120,7 @@ void QCache::check_expire() {
   size_t time_stamp = time(NULL);
 
   it = _expires_leave.begin();   
-  // Node with current timestamp is found 
-
+  // Node with current timestamp is found
   for(;it != _expires_leave.end();) {
     // Iterator for each node 
     v_iter = it->second.begin();
@@ -147,7 +143,6 @@ void QCache::check_expire() {
     it++;
   }
 
-  //std::map<std::string, size_t>::iterator it_lock 
   it_lock = _map_locked.begin();
   for(;it_lock != _map_locked.end(); it_lock ++) {
     if(_expires_leave.count(it_lock->second)) {
@@ -201,7 +196,6 @@ void QCache::ops_resolve() {
       break;
     }
     mlock_crl.unlock(); 
-
     _sheduler_buffer.pop();
   }
 

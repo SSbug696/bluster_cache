@@ -17,7 +17,7 @@ class RRList {
   Node *_head, *_it_ptr;
   
   public:
-    RRList(): _head(nullptr), _count_nodes(0) {};
+    RRList(): _count_nodes(0), _head(nullptr) {};
     ~RRList();
     
     void add(int, char buff[], size_t);

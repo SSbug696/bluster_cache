@@ -1,0 +1,152 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/Users/ssbug20 1/desktop/work/bluster_cache/kqueue_server.cpp
+kqueue_server.h
+/Users/ssbug20 1/desktop/work/bluster_cache/kqueue_server.h
+
+/Users/ssbug20 1/desktop/work/bluster_cache/kqueue_server.h
+stdio.h
+-
+stdlib.h
+-
+cstring
+-
+sys/types.h
+-
+sys/socket.h
+-
+netdb.h
+-
+unistd.h
+-
+fcntl.h
+-
+netinet/tcp.h
+-
+sys/event.h
+-
+sys/socket.h
+-
+netdb.h
+-
+errno.h
+-
+list
+-
+string
+-
+sstream
+-
+iostream
+-
+algorithm
+-
+time.h
+-
+iterator
+-
+thread
+-
+mutex
+-
+atomic
+-
+map
+-
+utility
+-
+qcache.h
+/Users/ssbug20 1/desktop/work/bluster_cache/qcache.h
+rrlist.h
+/Users/ssbug20 1/desktop/work/bluster_cache/rrlist.h
+log.h
+/Users/ssbug20 1/desktop/work/bluster_cache/log.h
+
+/Users/ssbug20 1/desktop/work/bluster_cache/log.cpp
+log.h
+/Users/ssbug20 1/desktop/work/bluster_cache/log.h
+
+/Users/ssbug20 1/desktop/work/bluster_cache/log.h
+iostream
+-
+istream
+-
+sstream
+-
+chrono
+-
+iomanip
+-
+fstream
+-
+
+/Users/ssbug20 1/desktop/work/bluster_cache/qcache.cpp
+qcache.h
+/Users/ssbug20 1/desktop/work/bluster_cache/qcache.h
+
+/Users/ssbug20 1/desktop/work/bluster_cache/qcache.h
+iostream
+-
+map
+-
+vector
+-
+algorithm
+-
+map
+-
+sstream
+-
+iomanip
+-
+chrono
+-
+ctime
+-
+thread
+-
+unistd.h
+/Users/ssbug20 1/desktop/work/bluster_cache/unistd.h
+set
+-
+queue
+-
+unordered_map
+-
+sys/types.h
+-
+unistd.h
+-
+mutex
+-
+condition_variable
+-
+atomic
+-
+
+/Users/ssbug20 1/desktop/work/bluster_cache/rrlist.cpp
+rrlist.h
+/Users/ssbug20 1/desktop/work/bluster_cache/rrlist.h
+iostream
+-
+
+/Users/ssbug20 1/desktop/work/bluster_cache/rrlist.h
+atomic
+-
+string
+-
+mutex
+-
+
+/Users/ssbug20 1/desktop/work/bluster_cache/server_init.cpp
+kqueue_server.h
+/Users/ssbug20 1/desktop/work/bluster_cache/kqueue_server.h
+iostream
+-
+

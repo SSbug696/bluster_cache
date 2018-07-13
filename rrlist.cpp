@@ -48,7 +48,6 @@ int RRList::next_slice(std::string & buff) {
   _m_lock.lock();
   if(_count_nodes > 0) {
     buff = _head->buffer;
-    //memcpy(buffer, _head->buffer, _head->ln);
     fd = _head->fd;
 
     if(_count_nodes > 1) {

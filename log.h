@@ -5,6 +5,9 @@
 #include <iomanip>
 #include <fstream>
 
+#define FILE_LOG 0
+#define CONSOLE_LOG 1
+
 enum log_types { LDEBUG, LINFO, LWARN, LERR };
 
 class Log {
@@ -19,9 +22,9 @@ class Log {
     // Alert lvl
     const log_types LVL_REPORTING = LDEBUG;
     // File I/O resolution for file ops
-    const bool FIO_FLAG = true; 
+    const bool FIO_FLAG = FILE_LOG; 
     // File I/O resolution for command prompt
-    const bool CIO_ENABLED = true;
+    const bool CIO_ENABLED = CONSOLE_LOG;
 
   public:
     ~Log();

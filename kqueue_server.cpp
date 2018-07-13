@@ -17,20 +17,19 @@ Server::Server(size_t max_pool_sz) {
 }
 
 void Server::do_task() {
+  // For request result
   std::string result;
-  //std::string command;
+  // Source command
   std::string command_line;
   std::string tmp_str;
-
   std::string key;
   std::string value;
-
   std::vector<std::string> assets;
   std::vector<std::string> multi_parts;
   std::vector<std::string> string_parts;
 
+  // Buffer for part of command request
   char tmp_buffer[MAX_BUFFER_SIZE];
-
   short int counter = 0;
   int sz = 0;
   int uid = 0;
@@ -46,18 +45,29 @@ void Server::do_task() {
   bool to_push = false;
   char buffer_source[MAX_BUFFER_SIZE];
 
+  int chunk_offset = 0;
+  int is_flag = 1;
+  int wc = 0;
+
   std::unique_lock<std::mutex> mlock_rt(_mutex_rw);
   
   memset(buffer_source, 0, MAX_BUFFER_SIZE);
 
   while(1) {
     memset(tmp_buffer, 0, MAX_BUFFER_SIZE);
+
+    chunk_offset = 0;
+    is_flag = 1;
+    wc = 0;
+
+    multi_parts.clear();    
+    is_quote_substring = false;
+    to_push = false;
+
     // Awaiting wake up
     _writer_cond.wait(mlock_rt);
-    
-    //std::cout << " next" << std::endl;
-    uid = _round_queue->next_slice(command_line);
 
+    uid = _round_queue->next_slice(command_line);
     if(uid == -1) {
       continue;
     }
@@ -65,8 +75,7 @@ void Server::do_task() {
     // To shift pointer
     t_ptr = tasks[uid];
     _notify_shed = false;
-
-    tasks[uid]->processing = true;
+    sz = command_line.size();
 
     // Detecting multiple inserts
     if(command_line[0] == '[') {
@@ -134,12 +143,11 @@ void Server::do_task() {
         if( to_push == true || i >= sz - 1 ) {
           is_quote_substring = false;
           tmp_str = tmp_buffer;
-
+          
           string_parts.push_back(tmp_str);
           
           memset(tmp_buffer, 0, chr_counter);
           chr_counter = 0;
-
           counter ++;
           to_push = false;
         }
@@ -147,26 +155,15 @@ void Server::do_task() {
 
       //  Get command ID
       COMMAND_ID = _assoc_dict_commands[ string_parts[0] ];
+      key = string_parts[1];
+      value = string_parts[2];
 
-      for(int i = 1; i < counter; i ++) {                  
-        switch(i) {
-          case 1:
-            key = string_parts[i];
-          break;
-
-          case 2:
-            value = string_parts[i];
-          break;
-
-          default:
-            assets.push_back(string_parts[i]);
-          break;
-        }
+      for(int i = 3; i < counter; i ++) {                  
+        assets.push_back(string_parts[i]);
       }
 
       memset(tmp_buffer, 0, sizeof(tmp_buffer));
 
-      // Synchronizing threads
       _mutex_cache.lock();
 
       switch(COMMAND_ID) {
@@ -220,7 +217,6 @@ void Server::do_task() {
       }
 
       _mutex_cache.unlock();
-
       // Clear string vector
       string_parts.clear();
       // Clear assets args
@@ -230,33 +226,23 @@ void Server::do_task() {
       counter = 0;  
     }
 
-  
-    multi_parts.clear();    
-    is_quote_substring = false;
-    to_push = false;
-
-    // Get time of start message response
     sz = result.size();
-    memset(&buffer_source[sz], 0, MAX_BUFFER_SIZE - sz);
+    memset(buffer_source + sz, 0, MAX_BUFFER_SIZE - sz);
     result.copy(buffer_source, sz);    
 
-    int chunk_offset = 0;
-    int is_flag = 1;
-    int wc = 0;
-
     //While until buffer isn't flushed and don't exist error
-    while(t_ptr->status.load(std::memory_order_relaxed) && is_flag) {    
+    while(t_ptr->status && is_flag) {    
       // Write data by chunks with chunk_offset
       wc = write(uid, buffer_source + chunk_offset,  sz - chunk_offset);
 
-      if(wc == -1) {
+      if(wc < 0) {
         if(errno == EWOULDBLOCK || errno == EAGAIN) {
           continue;
         } else {
-          t_ptr->status.store(false, std::memory_order_seq_cst);
+          t_ptr->status = false;
         }
       } else if(wc == 0) {
-        t_ptr->status.store(false, std::memory_order_seq_cst);
+        t_ptr->status = false;
       } else {
         chunk_offset += wc;
         if(chunk_offset == sz) break;
@@ -278,22 +264,17 @@ void Server::init_workers_pool() {
 }
 
 int Server::make_socket_non_blocking(int sfd) {
-  int flags, s;
+  int flags;
 
   flags = fcntl(sfd, F_GETFL, 0);
-  if(flags == -1) {
-    std::cerr << "fcntl" << std::endl;
-    return -1;
+  if(flags < 0) {
+    Log().get(LERR) << "FCNTL error";
+    exit(EXIT_FAILURE);
   }
 
   flags |= O_NONBLOCK;
-  s = fcntl(sfd, F_SETFL, flags);
-  if(s == -1) {
-    std::cerr << "fcntl" << std::endl;
-    return -1;
-  }
+  fcntl(sfd, F_SETFL, flags);
 
-  // Not awaiting for closing FD
   struct so_linger {
     int l_onoff;
     int l_linger;
@@ -321,15 +302,15 @@ int Server::create_and_bind(char * port) {
 
   s = getaddrinfo(NULL, port, &hints, &result);
   if(s != 0) {
-    std::cerr << "getaddrinfo:" << gai_strerror(s) << std::endl;
-    return -1;
+    Log().get(LERR) << " getaddrinfo:" << gai_strerror(s);
+    exit(EXIT_FAILURE);
   }
 
   for(rp = result; rp != NULL; rp = rp->ai_next) {
     sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
     if (sfd == -1) {
-      std::cerr << " error of net family" << std::endl;
-      continue;
+      Log().get(LERR) << "Error of NET family";
+      exit(EXIT_FAILURE);
     }
 
     s = bind(sfd, rp->ai_addr, rp->ai_addrlen);
@@ -342,26 +323,21 @@ int Server::create_and_bind(char * port) {
   }
 
   if (rp == NULL) {
-    std::cerr << "Could not bind" << std::endl;
-    return -1;
+    Log().get(LERR) << "Could not bind";
+    exit(EXIT_FAILURE);
   }
   freeaddrinfo(result);
   return sfd;
 }
 
 void Server::clear_buffer(size_t fd) {
-  //if(tasks.find(fd) != tasks.end()) {
   delete tasks[fd];
   tasks.erase(fd);
-  //}
 }
 
 void Server::rm_fd(size_t fd) {
   memset(_buffer_recv, 0, MAX_BUFFER_SIZE);
-  std::cout << "Socket with id#" << fd << " is terminated" << std::endl;
-  // Clear sheduler queue
-  //_round_queue->rm_all(fd);
-  // Close file descriptor
+  Log().get(LDEBUG) << "Socket with id#" << fd << " is terminated";
   close(fd);
 }
 
@@ -372,12 +348,13 @@ int Server::init(char * port) {
   int local_s = create_and_bind(port);
   int fd = make_socket_non_blocking(local_s);
   if (fd == -1) {
-    std::runtime_error("Error create fd");
+    Log().get(LERR) << "Error creating a socket";
+    exit(EXIT_FAILURE);
   }
   
   s = listen(local_s, SOMAXCONN);
   if(s == -1) {
-    std::runtime_error("Error of listen socket");
+    Log().get(LERR) << "Listen error";
     exit(EXIT_FAILURE);
   }
 
@@ -391,19 +368,17 @@ int Server::init(char * port) {
     
   EV_SET(&ev, local_s, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0,	NULL);
 	if(kevent(kq, &ev, 1, 0, 0, NULL) == -1) {
-    std::runtime_error("Critical kevent error");
+    Log().get(LERR) << "Critical kevent error";
   }
 
   task_struct * tts;
   char * ptr;
 
-  std::runtime_error("Kevent error");
-
   while(1){
     int kv = kevent(kq, 0, 0, ev_set, MAXEVENTS, NULL);
 
     if(kv < 0) {
-      std::runtime_error("Kevent error");
+      Log().get(LERR) << "Kevent error";
       exit(EXIT_FAILURE);
     }
 
@@ -436,17 +411,17 @@ int Server::init(char * port) {
 
           if(tts->recv_bytes + _recv_bytes_count > MAX_BUFFER_SIZE || !tts->status) {
             if(!tts->status) continue;
-
             tts->status = false;
             continue;
           }
 
+          // Get data cursor position for addition new data
           int sz_b = tts->recv_bytes;
-          memcpy(&ptr[sz_b], _buffer_recv, _recv_bytes_count);
+          memcpy(ptr + sz_b, _buffer_recv, _recv_bytes_count);
           tts->recv_bytes += _recv_bytes_count;
 
+          // Get byte length 
           int sz = get_msg_sz(ptr, tts->recv_bytes);
-
           if(sz == -1) {  
             memset(_buffer_recv, 0, _recv_bytes_count);
             continue;
@@ -454,41 +429,44 @@ int Server::init(char * port) {
 
           // Get size of prefix(service info) for extracting from total size
           size_t sz_prefix = get_len_prefix(sz);
-          
-          _round_queue->add(ev_set[i].ident, &ptr[sz_prefix], sz);
+          // Send data with prefix offset
+          _round_queue->add(ev_set[i].ident, ptr + sz_prefix, sz);
+          // Increment current pool counter
           tts->in_round_counter ++;
-    
+
+          // Awaiting some worker
           _notify_shed = true;
-          
           while(_notify_shed.load(std::memory_order_seq_cst)) {
             _writer_cond.notify_one();
-          }   
+          }
 
           // Get current byte count
           size_t len = tts->recv_bytes;
-         
-          len -= (sz_prefix + sz);
+          // Reset the receiving counter
+          len -= sz_prefix + sz;
           memcpy(ptr, &ptr[sz_prefix + sz], len);
-          memset(&ptr[len], 0, (sz_prefix + sz));
-          tts->recv_bytes = len;
-
+          memset(ptr + len, 0, MAX_BUFFER_SIZE - len);
           memset(_buffer_recv, 0, _recv_bytes_count);
+          
+          tts->recv_bytes = len;
 
           continue;
         } else if(errno != EWOULDBLOCK && errno != EAGAIN) {
           tasks[ev_set[i].ident]->status = false;
         }
-      } else 
+      } else
       
       if(ev_set[i].ident == local_s) {
         infd = accept(local_s, &in_addr, &in_len);
         if(infd == -1) {
-          std::runtime_error("Accept error");
+          Log().get(LERR) << "Accept error";
+          exit(EXIT_FAILURE);
         }
         
         int fd = make_socket_non_blocking(infd);
         if (fd == -1) {
-          std::runtime_error("Invalid create FD");
+          Log().get(LERR) << "Invalid create FD";
+          exit(EXIT_FAILURE);
         }
 
         EV_SET(&ev, infd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
@@ -497,7 +475,7 @@ int Server::init(char * port) {
         EV_SET(&ev, infd, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
         kevent(kq, &ev, 1, NULL, 0, NULL);
 
-        Log().get(LDEBUG) << " new connection ";
+        Log().get(LDEBUG) << "New connection";
         
         // Init connection struct
         task_struct * ts = new task_struct();

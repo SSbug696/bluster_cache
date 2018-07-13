@@ -31,8 +31,7 @@ class QCache {
     // Workers pool
     std::vector<std::thread> workers_pool;
     // Mutex for locking resources
-    std::mutex _mutex_crl;
-    std::mutex _mutex_rw;
+    std::mutex _mutex_crl, _mutex_rw;
 
     // Double-linked list for quick displacement
     struct List {
@@ -78,10 +77,8 @@ class QCache {
     std::map<size_t, std::unordered_map<std::string, size_t> > _expires_leave;
     // Queue for records structs
     std::queue<NodeAction *> _sheduler_buffer;
-
     // Hash for old records in common pool
     std::map<std::string, size_t> _map_locked;
-
     // The first and last node
     List * _first;
     List * _last;
@@ -99,18 +96,17 @@ class QCache {
     inline void check_expire();
     inline void ops_resolve();
 
-    public:
-    /*
-      Override methods PUT for expire parameter
-     */
-      std::string put(std::string &&, std::string &&, size_t);
-      std::string put(std::string &&, std::string &&);
-      std::string get(std::string &&);
-      std::string del(std::string &&);
-      std::string flush();
-      std::string size();
-      std::string exist(std::string &&);
-      std::atomic<size_t> atomic_lock_nr;
-      
-      QCache(size_t);
+  public:
+  /*
+    Override methods PUT for expire parameter
+    */
+    std::string put(std::string &&, std::string &&, size_t);
+    std::string put(std::string &&, std::string &&);
+    std::string get(std::string &&);
+    std::string del(std::string &&);
+    std::string flush();
+    std::string size();
+    std::string exist(std::string &&);
+    std::atomic<size_t> atomic_lock_nr;
+    QCache(size_t);
 };

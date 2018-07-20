@@ -7,23 +7,79 @@ QCache::QCache(size_t size_queue) {
   _last       = 0;
 
   run_workers_shedule();
+  _up_ttl = 0;
   std::unordered_map<std::string, size_t> map_expire_disable;
   // Set map for old node. This hash can't be removed
   _expires_leave[1] = map_expire_disable;    
 }
 
-void QCache::ttl_shedule() {
-  while(1) {
-    //usleep(TRATE_CHECK_TTL);
-    //check_expire();
-  }
-}
+void QCache::ttl_shedule() {}
 
 void QCache::ops_sheduler() {
   while(1) {
+    check_expire();
     usleep(TRATE_CHECK_BF);
     ops_resolve();
   }
+}
+
+// Running watcher of records expires
+void QCache::run_workers_shedule() {
+  workers_pool.push_back( std::thread(&QCache::ops_sheduler, this) );
+  for_each(workers_pool.begin(), workers_pool.end(), [](std::thread & _n) {
+    _n.detach();
+  });
+}
+
+void QCache::push(NodeAction * ptr) {
+  std::unique_lock<std::mutex> mlock(_mutex_crl);
+  _sheduler_buffer.push(ptr);
+  mlock.unlock();
+}
+
+// Push task to queue
+std::string QCache::put(std::string && key, std::string && val) {
+  NodeAction * ptr = new NodeAction();
+  ptr->key = key;
+  ptr->val = val;
+  ptr->expire = 0;
+  ptr->type_action = WRITE;
+  _kv_tmp[key] = val;  
+  push(ptr);
+  return ONE;
+}
+
+std::string QCache::del(std::string && key) {
+  NodeAction * ptr = new NodeAction();
+  ptr->key = key;
+  ptr->type_action = REMOVE_ONCE;
+
+  push(ptr);
+
+  if( _kv_map.count(key) ) {
+    return ONE;
+  } else return ZERO;
+}
+
+std::string QCache::flush() {
+  NodeAction * ptr = new NodeAction();
+  ptr->type_action = REMOVE_ALL;
+  push(ptr);
+  return ONE;
+}
+
+// Push task to queue
+std::string QCache::put(std::string && key, std::string && val, size_t expire) {
+  NodeAction * ptr = new NodeAction();
+  ptr->key = key;
+  ptr->val = val;
+  ptr->expire = expire;
+  ptr->type_action = WRITE;
+
+  _kv_tmp[key] = val;
+  push(ptr);
+
+  return ONE;
 }
 
 std::string QCache::size() {
@@ -38,69 +94,11 @@ std::string QCache::exist(std::string && key) {
   } else return ZERO;
 }
 
-// Running watcher of records expires
-void QCache::run_workers_shedule() {
-  workers_pool.push_back( std::thread(&QCache::ops_sheduler, this) );
-  workers_pool.push_back( std::thread(&QCache::ttl_shedule, this) );
-
-  for_each(workers_pool.begin(), workers_pool.end(), [](std::thread & _n) {
-    _n.detach();
-  });
-}
-
 std::string QCache::get(std::string && key) {
   std::unique_lock<std::mutex> mlock(_mutex_crl);
   std::string val = to_lock_key(key, 1);
   mlock.unlock();
   return val; 
-}
-
-// Push task to queue
-std::string QCache::put(std::string && key, std::string && val) {
-  NodeAction * ptr = new NodeAction();
-  ptr->key = key;
-  ptr->val = val;
-  ptr->expire = 0;
-  ptr->type_action = WRITE;
-
-  _kv_tmp[key] = val;
-  
-  _sheduler_buffer.push(ptr);  
-  return ONE;
-}
-
-std::string QCache::del(std::string && key) {
-  NodeAction * ptr = new NodeAction();
-  ptr->key = key;
-  ptr->type_action = REMOVE_ONCE;
-
-  _sheduler_buffer.push(ptr);
-
-  if( _kv_map.count(key) ) {
-    return ONE;
-  } else return ZERO;
-}
-
-std::string QCache::flush() {
-  NodeAction * ptr = new NodeAction();
-  ptr->type_action = REMOVE_ALL;
-  
-  _sheduler_buffer.push(ptr);
-  return ONE;
-}
-
-// Push task to queue
-std::string QCache::put(std::string && key, std::string && val, size_t expire) {
-  NodeAction * ptr = new NodeAction();
-  ptr->key = key;
-  ptr->val = val;
-  ptr->expire = expire;
-  ptr->type_action = WRITE;
-
-  _kv_tmp[key] = val;
-  _sheduler_buffer.push(ptr);
-
-  return ONE;
 }
 
 // Set to delete queue for old node
@@ -109,14 +107,7 @@ void QCache::check_expire() {
     return;
   }
 
-  // Break iteration fir empty hash table
-  std::unique_lock<std::mutex> mlock(_mutex_rw);
-
-  if(_expires_leave.empty()) {
-    mlock.unlock();
-    return;
-  }
-  
+  std::unique_lock<std::mutex> mlock_crl(_mutex_crl);
   size_t time_stamp = time(NULL);
 
   it = _expires_leave.begin();   
@@ -158,21 +149,21 @@ void QCache::check_expire() {
   }
 
   _map_locked.clear();
-  mlock.unlock();
+  mlock_crl.unlock();
 }
 
 // Set values in queue from main input stream
 void QCache::ops_resolve() {
   NodeAction * ptr = 0;
-  std::unique_lock<std::mutex> mlock(_mutex_rw);
-
+  int record_produce = MAX_REQ_PROCESSING;
   // Sync with pool records
-  while( !_sheduler_buffer.empty() ) {
+  while( !_sheduler_buffer.empty()  && record_produce --) {
     ptr = _sheduler_buffer.front();
 
     if(ptr == 0) continue;
     
     std::unique_lock<std::mutex> mlock_crl(_mutex_crl);
+
     switch(ptr->type_action) {
       case WRITE:
         write(std::move(ptr->key), std::move(ptr->val), ptr->expire);
@@ -195,11 +186,10 @@ void QCache::ops_resolve() {
         _first = 0;
       break;
     }
+    
     mlock_crl.unlock(); 
     _sheduler_buffer.pop();
   }
-
-  mlock.unlock();
 }
 
 std::string QCache::to_lock_key(std::string key, size_t type) {
@@ -236,8 +226,7 @@ void QCache::do_vacuum_cache(std::string key) {
   if( _kv_map.count(key) == 0 ) {
     return;
   }
-
-  size_t time_stamp = time(NULL);
+  
   List * target_node = _kv_map[key];
 
   if(target_node->prev == 0 && target_node->next == 0) {

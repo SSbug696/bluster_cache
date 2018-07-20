@@ -1,18 +1,12 @@
 #include "epoll_server.h"
 
 Server::Server(size_t max_pool_sz) {
-  //_buffer_recv = new char(MAX_BUFFER_SIZE);
-  memset(&_buffer_recv, 0, sizeof(_buffer_recv));
+  _cache = new QCache(max_pool_sz);
+  // Round-robin list for sheduler
+  _round_queue = new RRList();
 
-  cache = new QCache(max_pool_sz);
-  intitWorkersPool();
-
-  _min_commands_len["s"] = 3;
-  _min_commands_len["g"] = 2;
-  _min_commands_len["e"] = 2;
-  _min_commands_len["d"] = 2;
-  _min_commands_len["f"] = 1;
-  _min_commands_len["sz"] = 1;
+  // Initisalize workers pool
+  init_workers_pool();
 
   _assoc_dict_commands["set"]   = SET;
   _assoc_dict_commands["get"]   = GET;
@@ -22,90 +16,71 @@ Server::Server(size_t max_pool_sz) {
   _assoc_dict_commands["size"]  = SIZE;
 }
 
-void Server::data() {
+void Server::do_task() {
+  // For request result
   std::string result;
-  std::string command;
+  // Source command
+  std::string command_line;
+  std::string tmp_str;
   std::string key;
   std::string value;
-  size_t COMMAND_ID;
-  int type_command = 0;
-  std::string tmp_str;
-
   std::vector<std::string> assets;
   std::vector<std::string> multi_parts;
   std::vector<std::string> string_parts;
 
-  size_t chr_counter = 0;
+  // Buffer for part of command request
+  char tmp_buffer[MAX_BUFFER_SIZE];
   short int counter = 0;
+  int sz = 0;
+  int uid = 0;
+
+  size_t sz_inserts;
+  size_t expire = 0;
+  size_t COMMAND_ID;
+  size_t chr_counter = 0;
+
+  // Pointer to request struct
+  task_struct * t_ptr;
+  
   bool is_quote_substring = false;
   bool to_push = false;
-  size_t sz = 0;
+  char buffer_source[MAX_BUFFER_SIZE];
 
-  char buffer[1024];
-  char tmp_buffer[1024];
-  std::string command_line;
-  size_t expire = 0;
-  task_struct * ptr = 0;
+  int chunk_offset = 0;
+  int is_flag = 1;
+  int wc = 0;
 
+  std::unique_lock<std::mutex> mlock_rt(_mutex_rw);
+  
+  memset(buffer_source, 0, MAX_BUFFER_SIZE);
 
   while(1) {
+    memset(tmp_buffer, 0, MAX_BUFFER_SIZE);
 
-    if(atomic_lock_nr.load() > 0) {
-      atomic_lock_nr.fetch_sub(1, std::memory_order_release);
-    } else {
-      usleep(100);
-      //continue;
-    }
-    
-    // Lock workers
-    std::unique_lock<std::mutex> mlock_rt(_mutex_rw);
-    // Lock queue container for other threads
-    std::unique_lock<std::mutex> mlock_queue(_mutex_queue);
-    
-    // Reset pointer
-    ptr = 0;
+    chunk_offset = 0;
+    is_flag = 1;
+    wc = 0;
 
-    // If queue is empty to unlock mutex
-    if(_request_queue.empty()) {
-      
-      mlock_queue.unlock();
-      mlock_rt.unlock();
+    multi_parts.clear();    
+    is_quote_substring = false;
+    to_push = false;
+
+    // Awaiting wake up
+    _writer_cond.wait(mlock_rt);
+
+    uid = _round_queue->next_slice(command_line);
+    if(uid == -1) {
       continue;
     }
 
-    ptr = _request_queue.front();
-
-    // Remove the last item
-    if(ptr > 0) _request_queue.pop();
-
-    // If ptr getting zero to unlock mutex
-    if(ptr == 0) {
-      mlock_queue.unlock();
-      mlock_rt.unlock();
-      continue;
-    }
-
-    // Unlock mutex
-    mlock_queue.unlock();    
-    mlock_rt.unlock();
-
-    // Reset buffers
-    memset(buffer, 0, sizeof(buffer));
-    memset(tmp_buffer, 0, sizeof(tmp_buffer));
-
-    // Get handle client
-    int sock_id = ptr->handle_client;
-
-    // Get request text
-    sz = ptr->command.size();
-    command_line = ptr->command.substr(0, sz);
-
-    // Free memory
-    delete ptr;
-
+    // To shift pointer
+    t_ptr = tasks[uid];
+    _notify_shed = false;
+    sz = command_line.size();
+    
     // Detecting multiple inserts
     if(command_line[0] == '[') {
-      for(size_t i = 1; i < sz; i ++) {
+      for(int i = 1; i < sz; i ++) {
         // Trigger for double quotes
         if(command_line[i] == '"' && command_line[i - 1] != '\\') {
           is_quote_substring = !is_quote_substring;
@@ -113,41 +88,41 @@ void Server::data() {
 
         // Split by separator
         if((command_line[i] == ',' && is_quote_substring == false) || (i == sz - 1)) {
-          std::string str(tmp_buffer);
-          multi_parts.push_back(str);
-          is_quote_substring = false;
-
-          memset(tmp_buffer, 0, sizeof(tmp_buffer));
-
+          tmp_str = tmp_buffer;
+          multi_parts.push_back(tmp_str);
+          // Clear to message length
+          memset(tmp_buffer, 0, counter);
           counter = 0;
+          is_quote_substring = false;
           continue;
         }
 
         tmp_buffer[counter] = command_line[i];
         counter ++;
       }
-    } else multi_parts.push_back(command_line);
+    } else {
+      multi_parts.push_back(command_line);
+    }
 
-    size_t sz_inserts = multi_parts.size();
+    sz_inserts = multi_parts.size();
     counter = 0;
-    
+
     for(size_t k = 0; k < sz_inserts; k ++) {
       // Set default command value
       command_line = multi_parts[k];
       sz = command_line.size();
       
-      memset(tmp_buffer, 0, sizeof(tmp_buffer));
+      memset(tmp_buffer, 0, MAX_BUFFER_SIZE);
 
-      for(size_t i = 0; i < sz; i ++) {
+      for(int i = 0; i < sz; i ++) {
         // Isn't whitespace
         if(command_line[i] != ' ') {
-          
           // Trigger for define end substring and push substring to buffer  
           if(command_line[i] == '"') {
             if(command_line[i - 1] != '\\') {
               is_quote_substring = !is_quote_substring;
             }
-          }
+          } 
 
           // Remove double quote for command and key
           if((command_line[i] == '"') && counter <= 1) {
@@ -169,26 +144,19 @@ void Server::data() {
         if( to_push == true || i >= sz - 1 ) {
           is_quote_substring = false;
           tmp_str = tmp_buffer;
-
-          string_parts.push_back(tmp_str);
-          chr_counter = 0;
           
-          memset(tmp_buffer, 0, sizeof(tmp_buffer));
+          string_parts.push_back(tmp_str);
+          
+          memset(tmp_buffer, 0, chr_counter);
 
+          chr_counter = 0;
           counter ++;
           to_push = false;
         }
       }
 
-      //?? std::cout << " OO:: " << string_parts[0] << std::endl;
       //  Get command ID
       COMMAND_ID = _assoc_dict_commands[ string_parts[0] ];
-
-      //  Command escaping error
-      if(is_quote_substring) {
-        counter = 0;
-        command = "err";
-      }
 
       for(int i = 1; i < counter; i ++) {                  
         switch(i) {
@@ -206,10 +174,9 @@ void Server::data() {
         }
       }
 
-      // Synchronizing threads
-      _mutex_cache.lock();
-
       memset(tmp_buffer, 0, sizeof(tmp_buffer));
+
+      _mutex_cache.lock();
 
       switch(COMMAND_ID) {
         case SET:
@@ -262,7 +229,6 @@ void Server::data() {
       }
 
       _mutex_cache.unlock();
-
       // Clear string vector
       string_parts.clear();
       // Clear assets args
@@ -272,296 +238,305 @@ void Server::data() {
       counter = 0;  
     }
 
+    sz = result.size();
+    memset(buffer_source + sz, 0, MAX_BUFFER_SIZE - sz);
+    result.copy(buffer_source, sz);    
 
-    command = "";
-    key = "";
-    value = "";
-    type_command = 0;
-    tmp_str = "";
+    // While until buffer isn't flushed and don't exist error
+    while(t_ptr->status && is_flag) {    
+      // Write data by chunks with chunk_offset
+      wc = write(uid, buffer_source + chunk_offset,  sz - chunk_offset);
 
-    assets.clear();
-    multi_parts.clear();
-    string_parts.clear();
-
-    chr_counter = 0;
-    counter = 0;
-    is_quote_substring = false;
-    to_push = false;
-    sz = 0;
-
-
-    // Forwarding to new line
-    result.append("\n");
-
-    size_t szs =  result.size();
-
-    memset(buffer, 0, sizeof(buffer));
-    strncpy(buffer, result.c_str(), sizeof(buffer));
-
-    buffer[ sizeof(buffer) - 1 ] = 0;
-
-    result.clear(); 
-    result = "";
-          
-    std::unique_lock<std::mutex> mlock_rt_write(_mutex_rw);
-
-    if( 
-        (events[sock_id].events & EPOLLERR) ||
-        (events[sock_id].events & EPOLLHUP)
-      ) {
-
-      close(events[sock_id].data.fd);
-    } else {
-
-      while(1) {
-        int s = write(events[sock_id].data.fd, buffer, szs);
-        
-        if(s == -1) {
-
-         if( 
-            (events[sock_id].events & EPOLLERR) ||
-            (events[sock_id].events & EPOLLHUP)
-          ) {
-            close(events[sock_id].data.fd);
-            break;
-          }
-
-          if(errno == EWOULDBLOCK || errno == EAGAIN) {
-            continue;
-          }
-
-          events[sock_id].events |= EPOLLERR;
-
-        } else if(s == 0) {
-          events[sock_id].events |= EPOLLERR;
+      if(wc < 0) {
+        if(errno == EWOULDBLOCK || errno == EAGAIN) {
+          continue;
+        } else {
+          t_ptr->status = false;
         }
-
-        break;
+      } else if(wc == 0) {
+        t_ptr->status = false;
+      } else {
+        chunk_offset += wc;
+        if(chunk_offset == sz) break;
       }
     }
 
-    mlock_rt_write.unlock();
+    sz = 0;
+    // Request is performed. Decrement of request
+    t_ptr->in_round_counter --;
+    memset(buffer_source, 0,  chunk_offset);
   }
 }
 
-void Server::intitWorkersPool() {
-  //for(size_t i = 0; i < WORKERS_POOL; ++i) 
-  //_thread_pool.push_back(std::thread(&Server::data, this));
-  _thread_pool.push_back(std::thread(&Server::data, this));
-
-  std::vector<std::thread>::iterator it = _thread_pool.begin();
-  for(; it != _thread_pool.end(); it ++ ) {
-    it->detach();
+void Server::init_workers_pool() {
+  for(size_t i = 0; i < WORKERS_POOL; ++i) {
+    _thread_pool.push_back(std::thread(&Server::do_task, this));
   }
+
+  for_each(_thread_pool.end(), _thread_pool.end(), [](std::thread &t){ t.detach(); });
 }
 
 int Server::make_socket_non_blocking(int sfd) {
-  int flags, s;
+  int flags;
 
-  flags = fcntl (sfd, F_GETFL, 0);
-  if(flags == -1) {
-    perror ("fcntl");
-    return -1;
+  flags = fcntl(sfd, F_GETFL, 0);
+  if(flags < 0) {
+    Log().get(LERR) << "FCNTL error";
+    exit(EXIT_FAILURE);
   }
 
   flags |= O_NONBLOCK;
-  s = fcntl (sfd, F_SETFL, flags);
-  if(s == -1) {
-    perror ("fcntl");
-    return -1;
-  }
+  fcntl(sfd, F_SETFL, flags);
 
-  // Not awaiting for closing FD
   struct so_linger {
     int l_onoff;
     int l_linger;
   } linger;
 
-  int reuse = 1;
+  int enable_flag = 1;
   linger.l_onoff = 0;
   linger.l_linger = 0;  
 
   setsockopt(sfd, SOL_SOCKET, SO_LINGER,  &linger, sizeof(linger));
-  setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-
+  setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &enable_flag, sizeof(enable_flag));
+  setsockopt(sfd, SOL_SOCKET, TCP_NODELAY, &enable_flag, sizeof(enable_flag));
+   
   return 0;
 }
 
-int Server::create_and_bind(char *port) {
+void Server::clear_buffer(size_t fd) {
+  delete tasks[fd];
+  tasks.erase(fd);
+}
+
+void Server::rm_fd(size_t fd) {
+  memset(_buffer_recv, 0, MAX_BUFFER_SIZE);
+  close(fd);
+}
+
+int Server::create_and_bind(char * port) {
   struct addrinfo hints;
   struct addrinfo *result, *rp;
   int s, sfd;
 
   memset(&hints, 0, sizeof(addrinfo));
-
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_flags = AI_PASSIVE;    
 
   s = getaddrinfo(NULL, port, &hints, &result);
   if(s != 0) {
-    fprintf (stderr, "getaddrinfo: %s\n", gai_strerror (s));
-    return -1;
+    Log().get(LERR) << "Getaddrinfo:" << gai_strerror(s);
+    exit(EXIT_FAILURE);
   }
 
   for(rp = result; rp != NULL; rp = rp->ai_next) {
     sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-    if (sfd == -1)
-      continue;
+    if (sfd == -1) {
+      Log().get(LERR) << "Error of NET family";
+      exit(EXIT_FAILURE);
+    }
 
     s = bind(sfd, rp->ai_addr, rp->ai_addrlen);
-    if (s == 0) {
-      /* We managed to bind successfully! */
+    if(s == 0) {
+      // Managed to bind successfully
       break;
     }
 
-    close (sfd);
+    close(sfd);
   }
 
   if (rp == NULL) {
-    fprintf (stderr, "Could not bind\n");
-    return -1;
+    Log().get(LERR) << "Could not bind";
+    exit(EXIT_FAILURE);
   }
-
-  freeaddrinfo (result);
+  
+  freeaddrinfo(result);
   return sfd;
 }
 
 int Server::init(char * port) {
+  struct sockaddr in_addr;
+  socklen_t in_len;
+  task_struct * tts;
+  char * ptr;
 
-  sfd = create_and_bind(port);
-  if (sfd == -1)
-    abort ();
+  local_s = create_and_bind(port);
+  if(local_s == -1) {
+    Log().get(LERR) << "Socket binding error";
+    exit(EXIT_FAILURE);
+  }
 
-  s = make_socket_non_blocking (sfd);
-  if (s == -1)
-    abort ();
+  s = make_socket_non_blocking(local_s);
+  if(s == -1) {
+    Log().get(LERR) << "Error of non-blocking mode";
+    exit(EXIT_FAILURE);
+  }
 
-  s = listen (sfd, SOMAXCONN);
-  if (s == -1)
-    {
-      perror ("listen");
-      abort ();
-    }
+  s = listen(local_s, SOMAXCONN);
+  if(s == -1) {
+    Log().get(LERR) << "Error of socket listening";
+    exit(EXIT_FAILURE);
+  }
 
   efd = epoll_create1(0);
-  if (efd == -1)
-    {
-      perror ("epoll_create");
-      abort ();
-    }
+  if(efd == -1) {
+    Log().get(LERR) << "Critical error in initialization EPOLL";
+    exit(EXIT_FAILURE);
+  }
 
-  event.data.fd = sfd;
-  event.events = EPOLLIN | EPOLLET | EPOLLOUT;
-  s = epoll_ctl (efd, EPOLL_CTL_ADD, sfd, &event);
-  if (s == -1)
-    {
-      perror ("epoll_ctl");
-      abort ();
-    }
+  event.data.fd = local_s;
+  event.events = EPOLLIN | EPOLLHUP;
+  s = epoll_ctl(efd, EPOLL_CTL_ADD, local_s, &event);
 
-  /* Buffer where events are returned */
-  events = (epoll_event *)calloc(MAXEVENTS, sizeof(event));
+  if(s == -1) {
+    Log().get(LERR) << "CTL critical error";
+  }
 
-  /* The event loop */
-  while (1) {
-    int n, i;
+  while(1) {    
+    int n = epoll_wait(efd, events, MAXEVENTS, -1);
+    for(int i = 0; i < n; i++) {
 
-    // Awaiting some event
-    n = epoll_wait(efd, events, MAXEVENTS, -1);
-    
-    // Iteration by all changed sockets
-    for(i = 0; i < n; i++) {
-
-      // HUP socket
       if(
-        events[i].events & EPOLLERR ||
-        events[i].events & EPOLLHUP ) {
+        events[i].events & EPOLLERR || 
+        events[i].events & EPOLLRDHUP ||
+        events[i].events & EPOLLHUP
+      ) {
+        
+        if(tasks.find(events[i].data.fd) != tasks.end()) {
+          // Initialize pending completion
+          tasks[events[i].data.fd]->status = false;
 
-        /* An error has occured on this fd, or the socket is not
-           ready for reading (why were we notified then?) */
-        fprintf(stderr, "epoll error\n");
-        close(events[i].data.fd);
-        continue;
+          // If the first socket error was initialized in the main thread
+          if(!tasks[events[i].data.fd]->in_round_counter) {
+            if(epoll_ctl(efd, EPOLL_CTL_DEL, events[i].data.fd, &event)  == -1) {
+              Log().get(LERR) << "Critical epoll error";
+            }
 
-      } else if (sfd == events[i].data.fd) {
-        /*
-          Adding new descriptor
-         */
-        struct sockaddr in_addr;
-        socklen_t in_len;
-        int infd;
-
-        in_len = sizeof(in_addr);
-
-        infd = accept(sfd, &in_addr, &in_len);
-        if (infd == -1) {
-            if ((errno == EAGAIN) ||
-                (errno == EWOULDBLOCK)) {
-                continue;
-        } else  {
-            perror("accept");
-            continue;
+            rm_fd(events[i].data.fd);
+            clear_buffer(events[i].data.fd);
           }
         }
+      } else if (local_s == events[i].data.fd) {
+        int nfd = accept(local_s, &in_addr, &in_len);
+        if(nfd == -1) {
+          Log().get(LERR) << "Accept error";
+        }
         
-        s = make_socket_non_blocking(infd);
-        if (s == -1) {
-          perror("error of non-block mode");
+        int fd = make_socket_non_blocking(nfd);
+        if (fd == -1) {
+          Log().get(LERR) << "Error of non-blocking mode";
+          close(nfd);
           continue;
         }
 
-        event.data.fd = infd;
-        event.events = EPOLLIN | EPOLLET | EPOLLOUT;
-        s = epoll_ctl(efd, EPOLL_CTL_ADD, infd, &event);
+        event.events = EPOLLRDHUP | EPOLLIN | EPOLLOUT | EPOLLERR;
+        event.data.fd = nfd;
         
-        if(s == -1) {
-          perror ("epoll_ctl");
-          abort ();
-        }
-
-        continue;
-      } else {
-        // Read data from socket by chunks
-        //while(1) {
-        _recv_bytes_count = read(events[i].data.fd, _buffer_recv, sizeof(_buffer_recv));
-               
-        // If 0 to send SIG of HUP socket
-        if(_recv_bytes_count == 0) {
-          events[i].events |= EPOLLHUP;
-          continue;
-
-        } else if(_recv_bytes_count == -1) {
-          
-          // If socket can't be read
-          if(errno != EAGAIN && errno != EWOULDBLOCK) 
-            events[i].events |= EPOLLERR;
-          
+        s = epoll_ctl(efd, EPOLL_CTL_ADD, nfd, &event);
+        if(s  == -1) {
+          Log().get(LERR) << "CTL critical error";
+          close(nfd);
           continue;
         }
         
-        std::string str(_buffer_recv);
-
+        // Init connection struct
         task_struct * ts = new task_struct();
-        ts->command = _buffer_recv;
-        ts->handle_client = i;
+        ts->recv_bytes = 0;
+        ts->send_bytes = 0;
+        ts->status = true;
+        ts->in_round_counter = 0;
+        tasks[nfd] = ts;
+      } else if(events[i].events & EPOLLIN) {
+        _recv_bytes_count = read(events[i].data.fd, _buffer_recv, MAX_BUFFER_SIZE);
 
-        memset(_buffer_recv, 0, sizeof(_buffer_recv));
+        if(_recv_bytes_count > 0) {
+          tts = tasks[events[i].data.fd];
+          ptr = tts->command;
 
-        atomic_lock_nr.fetch_add(1, std::memory_order_relaxed);
+          if(tts->recv_bytes + _recv_bytes_count > MAX_BUFFER_SIZE || !tts->status) {
+            if(!tts->status) continue;
+            tts->status = false;
+            continue;
+          }
 
-        std::unique_lock<std::mutex> mlock_queue(_mutex_queue);
-        
-        _request_queue.push(ts);
+          // Get data cursor position for addition new data
+          int sz_b = tts->recv_bytes;
+          memcpy(ptr + sz_b, _buffer_recv, _recv_bytes_count);
+          tts->recv_bytes += _recv_bytes_count;
 
-        mlock_queue.unlock();      
+          // Get byte length 
+          int sz = get_msg_sz(ptr, tts->recv_bytes);
+          if(sz == -1) {  
+            memset(_buffer_recv, 0, _recv_bytes_count);
+            continue;
+          }
+
+          // Get size of prefix(service info) for extracting from total size
+          size_t sz_prefix = get_len_prefix(sz);
+          // Send data with prefix offset
+          _round_queue->add(events[i].data.fd, ptr + sz_prefix, sz);
+
+          // Increment current pool counter
+          tts->in_round_counter ++;
+
+          // Awaiting some worker
+          _notify_shed = true;
+          while(_notify_shed.load(std::memory_order_seq_cst)) {
+            _writer_cond.notify_one();
+          }
+
+          // Get current byte count
+          size_t len = tts->recv_bytes;
+          // Reset the receiving counter
+          len -= sz_prefix + sz;
+          memcpy(ptr, &ptr[sz_prefix + sz], len);
+          memset(ptr + len, 0, MAX_BUFFER_SIZE - len);
+          memset(_buffer_recv, 0, _recv_bytes_count);
+          
+          tts->recv_bytes = len;
+        } else if(errno != EWOULDBLOCK && errno != EAGAIN) {
+          events[i].events |= EPOLLERR;
+          tasks[events[i].data.fd]->status = false;
+        }     
       }
     }
   }
+  
+  return 0;
+}
 
-  free(events);
-  close(sfd);
+// Get length of prefix
+int Server::get_len_prefix(int number) {
+  size_t prefix_counter = 2;
+  while(number > 0) {
+    number /= 10;
+    prefix_counter ++;
+  }
+  return prefix_counter;
+}
 
-  sleep(1000);
-  return EXIT_SUCCESS;
+// Get data size in bytes
+int Server::get_msg_sz(char buffer[], const size_t SZ) {
+  if(buffer[0] != '[') return -1;
+  
+  bool flag = false;
+  size_t msg_len = 0;
+  size_t msg_index = 1;
+
+  // Scanning of request prefix
+  while(buffer[msg_index] != '\0' && msg_index <= MAX_LEN_PREFIX && msg_index < SZ) {
+    if(buffer[msg_index] == ']') {
+      flag = true;
+      break;
+    }
+
+    // To integer
+    msg_len = msg_len * 10 + (buffer[msg_index] - '0');
+    msg_index ++;
+  }
+  
+  // If empty scoupe
+  if(msg_index == 1 || !flag) return -1;
+  return msg_len;
 }

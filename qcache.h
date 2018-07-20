@@ -21,12 +21,15 @@
 class QCache {
     // ID's of action
     enum  actions { WRITE = 1, REMOVE_ONCE, REMOVE_ALL, GET_ALL };
-    const size_t TRATE_CHECK_TTL = 250000;
-    const size_t TRATE_CHECK_BF = 200000;
+    // Period check expire
+    const size_t TRATE_CHECK_TTL = 1;
+    const size_t TRATE_CHECK_BF = 100000;
+    const size_t MAX_REQ_PROCESSING = 500;
     int _limit, _current_sz;
-
     const std::string ONE = "1";
     const std::string ZERO = "0";
+    // Life time point
+    size_t _up_ttl;
     
     // Workers pool
     std::vector<std::thread> workers_pool;
@@ -95,6 +98,7 @@ class QCache {
     inline void do_vacuum_cache(std::string);
     inline void check_expire();
     inline void ops_resolve();
+    inline void push(NodeAction *);
 
   public:
   /*
@@ -106,7 +110,7 @@ class QCache {
     std::string del(std::string &&);
     std::string flush();
     std::string size();
-    std::string exist(std::string &&);
+    std::string exist(std::string &&);    
     std::atomic<size_t> atomic_lock_nr;
     QCache(size_t);
 };

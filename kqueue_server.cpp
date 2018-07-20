@@ -155,66 +155,77 @@ void Server::do_task() {
 
       //  Get command ID
       COMMAND_ID = _assoc_dict_commands[ string_parts[0] ];
-      key = string_parts[1];
-      value = string_parts[2];
 
-      for(int i = 3; i < counter; i ++) {                  
-        assets.push_back(string_parts[i]);
+      for(int i = 1; i < counter; i ++) {                  
+        switch(i) {
+          case 1:
+            key = string_parts[i];
+          break;
+
+          case 2:
+            value = string_parts[i];
+          break;
+
+          default:
+            assets.push_back(string_parts[i]);
+          break;
+        }
       }
 
       memset(tmp_buffer, 0, sizeof(tmp_buffer));
-
+      
       _mutex_cache.lock();
+      result = "1";
 
-      switch(COMMAND_ID) {
-        case SET:
-          if(assets.size() > 0) {
-            std::string exp_label = assets.front();
-            if( strspn( exp_label.c_str(), "0123456789" ) == exp_label.size() ) {
-              expire = atoi( exp_label.c_str() );
-            }
-          }
+      //switch(COMMAND_ID) {
+      //   case SET:
+      //     if(assets.size() > 0) {
+      //       std::string exp_label = assets.front();
+      //       if( strspn( exp_label.c_str(), "0123456789" ) == exp_label.size() ) {
+      //         expire = atoi( exp_label.c_str() );
+      //       }
+      //     }
           
-          // If expire is not defined
-          if(expire != 0) {
-            result = _cache->put(std::move(key), std::move(value), expire);
-          } else {
-            result = _cache->put(std::move(key), std::move(value));
-          }
-        break;
+      //     // If expire is not defined
+      //     if(expire != 0) {
+      //       result = _cache->put(std::move(key), std::move(value), expire);
+      //     } else {
+      //       result = _cache->put(std::move(key), std::move(value));
+      //     }
+      //   break;
       
-        case GET:
-          result = _cache->get(std::move(key));
-        break;
+      //   case GET:
+      //     result = _cache->get(std::move(key));
+      //   break;
 
-        case DEL:
-          result = _cache->del(std::move(key));
-        break;
+      //   case DEL:
+      //     result = _cache->del(std::move(key));
+      //   break;
 
-        case FLUSH:
-          result = _cache->flush();
-        break;
+      //   case FLUSH:
+      //     result = _cache->flush();
+      //   break;
 
-        case SIZE:
-          result = _cache->size();
-        break;
+      //   case SIZE:
+      //     result = _cache->size();
+      //   break;
       
-        case EXIST:
-          result = _cache->exist(std::move(key));
-        break;
+      //   case EXIST:
+      //     result = _cache->exist(std::move(key));
+      //   break;
 
-        case UNKNOWN:
-          result = "(unknown)";
-        break;
+      //   case UNKNOWN:
+      //     result = "(unknown)";
+      //   break;
 
-        case ERR:
-          result = "(err)";
-        break;
+      //   case ERR:
+      //     result = "(err)";
+      //   break;
 
-        default:
-          result = "(err)";
-        break;
-      }
+      //   default:
+      //     result = "(err)";
+      //   break;
+      // }
 
       _mutex_cache.unlock();
       // Clear string vector
@@ -225,7 +236,7 @@ void Server::do_task() {
       expire = 0;
       counter = 0;  
     }
-
+    
     sz = result.size();
     memset(buffer_source + sz, 0, MAX_BUFFER_SIZE - sz);
     result.copy(buffer_source, sz);    
@@ -249,9 +260,9 @@ void Server::do_task() {
       }
     }
 
+    memset(buffer_source + sz, 0,  chunk_offset);
     sz = 0;
     t_ptr->in_round_counter --;
-    memset(buffer_source, 0,  chunk_offset);
   }
 }
 
@@ -337,7 +348,6 @@ void Server::clear_buffer(size_t fd) {
 
 void Server::rm_fd(size_t fd) {
   memset(_buffer_recv, 0, MAX_BUFFER_SIZE);
-  Log().get(LDEBUG) << "Socket with id#" << fd << " is terminated";
   close(fd);
 }
 
@@ -383,7 +393,6 @@ int Server::init(char * port) {
     }
 
     for(int i = 0; i < kv; i ++) {
-
       if(ev_set[i].flags & EV_ERROR || ev_set[i].flags & EV_EOF) {
         if(tasks.find(ev_set[i].ident) != tasks.end()) {
           // Initialize pending completion
@@ -455,7 +464,7 @@ int Server::init(char * port) {
           tasks[ev_set[i].ident]->status = false;
         }
       } else
-      
+
       if(ev_set[i].ident == local_s) {
         infd = accept(local_s, &in_addr, &in_len);
         if(infd == -1) {
@@ -474,8 +483,6 @@ int Server::init(char * port) {
 
         EV_SET(&ev, infd, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
         kevent(kq, &ev, 1, NULL, 0, NULL);
-
-        Log().get(LDEBUG) << "New connection";
         
         // Init connection struct
         task_struct * ts = new task_struct();
@@ -487,6 +494,7 @@ int Server::init(char * port) {
       }  
     }
   }
+  
   return 0;
 }
 

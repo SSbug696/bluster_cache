@@ -1,72 +1,95 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/types.h>
+#include <sys/epoll.h>
+#include <cstring>
+#include <fcntl.h>
+#include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <netdb.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/epoll.h>
 #include <errno.h>
 #include <list>
 #include <string>
-#include <vector>
 #include <sstream>
 #include <iostream>
 #include <algorithm>
+#include <time.h> 
 #include <iterator>
 #include <thread>
 #include <mutex>
-#include <queue>
-#include <vector>
 #include <atomic>
+#include <map>
+#include <utility>
+#include "qcache.h"
+#include "rrlist.h"
+#include "log.h"
 
-#include "cache.h"
+
+#define MAX_BUFFER_SIZE 2048
+#define MAXEVENTS 1024
+#define WORKERS_POOL 3
+#define MAX_LEN_PREFIX 10
 
 class Server {
-  const size_t MAXEVENTS = 64;
-  const size_t WORKERS_POOL = 1;
-  const size_t MAX_BUFFER_SIZE = 8000000;
   enum  actions { UNKNOWN = 0, ERR, SET, GET, DEL, EXIST, FLUSH, SIZE };
-  std::atomic<long long> atomic_lock_nr;
 
-  // Minimum command length
-  std::map<std::string, size_t> _min_commands_len;
-  std::map<std::string, size_t> _assoc_dict_commands;
-
+  std::condition_variable _writer_cond;
+  std::atomic<bool> _is_locked, _notify_shed;
+  //bool _notify_shed;
+  std::map<std::string, size_t> _assoc_dict_commands;  
+  char nb[MAX_LEN_PREFIX];
+  // Round-robin queue for request notifications pipeline
+  RRList *_round_queue;
+  // LRU backand
+  QCache * _cache;
+  
   // Task struct
   struct task_struct {
-    std::string command;
-    size_t handle_client;
+    // Activity flag current task, not multiple context with current task id
+    bool processing;
+    // Flag of task id presence in the pipeline
+    int send_bytes;
+    int recv_bytes;
+    // Status of current task
+    std::atomic<bool> status;
+    std::atomic<size_t> in_round_counter;
+    char send_buffer[MAX_BUFFER_SIZE];
+    char command[MAX_BUFFER_SIZE];
   };
 
-  int sfd, s;
+  // Base struct of connection status
+  std::map<size_t, task_struct *> tasks;
+
+  int local_s, s;
+  // Epoll fd
   int efd;
+
   epoll_event event;
-  epoll_event * events;
+  epoll_event events[MAXEVENTS];
 
-  QCache * cache;
+  // Pool of workers. One sheduler and writers
   std::vector<std::thread> _thread_pool;
-  std::queue<task_struct *> _request_queue;
 
-  std::mutex _mutex_rw;
-  std::mutex _mutex_cache;
-  std::mutex _mutex_queue;
+  std::mutex _mutex_rw, _mutex_shed, _mutex_cache;
 
   ssize_t _recv_bytes_count;
-  char _buffer_recv[100000];
+  char _buffer_recv[MAX_BUFFER_SIZE];
 
   int make_socket_non_blocking(int);
   int create_and_bind (char *);
-  void intitWorkersPool();
-  void data();
+  void init_workers_pool();
+  void do_task();
+  inline void rm_fd(size_t);
+  inline void clear_buffer(size_t);
+  inline int get_msg_sz(char [], const size_t);
+  inline int get_len_prefix(int);
+  void notify_shed();
 
 public:
   Server(size_t);
-
   ~Server() {
-    delete cache;
-    free(events);
+    delete _round_queue;
+    delete _cache;
   }
 
   int init(char *);

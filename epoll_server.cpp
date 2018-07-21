@@ -2,10 +2,9 @@
 
 Server::Server(size_t max_pool_sz) {
   _cache = new QCache(max_pool_sz);
-  // Round-robin list for sheduler
+  // Round-robin queue for sheduler
   _round_queue = new RRList();
 
-  // Initisalize workers pool
   init_workers_pool();
 
   _assoc_dict_commands["set"]   = SET;
@@ -43,7 +42,7 @@ void Server::do_task() {
   task_struct * t_ptr;
   
   bool is_quote_substring = false;
-  bool to_push = false;
+  bool is_pushed = false;
   char buffer_source[MAX_BUFFER_SIZE];
 
   int chunk_offset = 0;
@@ -63,13 +62,14 @@ void Server::do_task() {
 
     multi_parts.clear();    
     is_quote_substring = false;
-    to_push = false;
+    is_pushed = false;
 
     // Awaiting wake up
     _writer_cond.wait(mlock_rt);
 
     uid = _round_queue->next_slice(command_line);
     if(uid == -1) {
+      _notify_shed = false;
       continue;
     }
 
@@ -136,12 +136,12 @@ void Server::do_task() {
           }
           
           if(chr_counter > 0 && is_quote_substring == false) {
-            to_push = true;
+            is_pushed = true;
           }
         }
 
         // If EOF of request
-        if( to_push == true || i >= sz - 1 ) {
+        if( is_pushed == true || i >= sz - 1 ) {
           is_quote_substring = false;
           tmp_str = tmp_buffer;
           
@@ -151,7 +151,7 @@ void Server::do_task() {
 
           chr_counter = 0;
           counter ++;
-          to_push = false;
+          is_pushed = false;
         }
       }
 
@@ -428,6 +428,8 @@ int Server::init(char * port) {
           Log().get(LERR) << "Error of non-blocking mode";
           close(nfd);
           continue;
+        } else {
+          Log().get(LDEBUG) << "New connection with FD #" << fd;
         }
 
         event.events = EPOLLRDHUP | EPOLLIN | EPOLLOUT | EPOLLERR;
@@ -482,7 +484,7 @@ int Server::init(char * port) {
 
           // Awaiting some worker
           _notify_shed = true;
-          while(_notify_shed.load(std::memory_order_seq_cst)) {
+          while(_notify_shed) {
             _writer_cond.notify_one();
           }
 

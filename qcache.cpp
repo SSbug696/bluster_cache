@@ -13,8 +13,6 @@ QCache::QCache(size_t size_queue) {
   _expires_leave[1] = map_expire_disable;    
 }
 
-void QCache::ttl_shedule() {}
-
 void QCache::ops_sheduler() {
   while(1) {
     check_expire();
@@ -31,34 +29,19 @@ void QCache::run_workers_shedule() {
   });
 }
 
-void QCache::push(NodeAction * ptr) {
-  std::unique_lock<std::mutex> mlock(_mutex_crl);
-  _sheduler_buffer.push(ptr);
-  mlock.unlock();
-}
-
 // Push task to queue
-std::string QCache::put(std::string && key, std::string && val) {
-  NodeAction * ptr = new NodeAction();
-  ptr->key = key;
-  ptr->val = val;
-  ptr->expire = 0;
-  ptr->type_action = WRITE;
-  _kv_tmp[key] = val;  
-  push(ptr);
-  return ONE;
+void QCache::push(NodeAction * ptr) {
+  _mutex_crl.lock();
+  _sheduler_buffer.push(ptr);
+  _mutex_crl.unlock();
 }
 
 std::string QCache::del(std::string && key) {
   NodeAction * ptr = new NodeAction();
   ptr->key = key;
   ptr->type_action = REMOVE_ONCE;
-
   push(ptr);
-
-  if( _kv_map.count(key) ) {
-    return ONE;
-  } else return ZERO;
+  return ONE;
 }
 
 std::string QCache::flush() {
@@ -76,14 +59,41 @@ std::string QCache::put(std::string && key, std::string && val, size_t expire) {
   ptr->expire = expire;
   ptr->type_action = WRITE;
 
+  _mutex_rw.lock();
   _kv_tmp[key] = val;
+  _mutex_rw.unlock();
+  
   push(ptr);
+  return ONE;
+}
 
+std::string QCache::put(std::string && key, std::string && val) {
+  NodeAction * ptr = new NodeAction();
+  ptr->key = std::move(key);
+  ptr->val = std::move(val);
+  ptr->expire = 0;
+  ptr->type_action = WRITE;
+  
+  _mutex_rw.lock();
+  _kv_tmp[key] = val;  
+  _mutex_rw.unlock();
+
+  push(ptr);
   return ONE;
 }
 
 std::string QCache::size() {
-  return std::to_string( _kv_map.size() );
+  _mutex_rw.lock();
+  std::string str = std::to_string( _kv_map.size() );
+  _mutex_rw.unlock();
+  return str;
+}
+
+std::string QCache::get(std::string && key) {
+  _mutex_rw.lock();
+  std::string str = to_lock_key(key, 1);
+  _mutex_rw.unlock();
+  return str;
 }
 
 std::string QCache::exist(std::string && key) {
@@ -92,13 +102,6 @@ std::string QCache::exist(std::string && key) {
   if(result != "(null)") {
     return ONE;
   } else return ZERO;
-}
-
-std::string QCache::get(std::string && key) {
-  std::unique_lock<std::mutex> mlock(_mutex_crl);
-  std::string val = to_lock_key(key, 1);
-  mlock.unlock();
-  return val; 
 }
 
 // Set to delete queue for old node
@@ -120,7 +123,10 @@ void QCache::check_expire() {
       // Remove duplication in the buffer, counter for blocked nodes
       if(v_iter->second <= time_stamp && v_iter->second > 0 ) { 
         // Guard for pair set/get       
+
+        _mutex_rw.lock();
         do_vacuum_cache(v_iter->first);
+        _mutex_rw.unlock();
 
         v_iter->second = 0;
 
@@ -157,12 +163,15 @@ void QCache::ops_resolve() {
   NodeAction * ptr = 0;
   int record_produce = MAX_REQ_PROCESSING;
   // Sync with pool records
-  while( !_sheduler_buffer.empty()  && record_produce --) {
+
+  std::lock_guard<std::mutex> mlock_crl(_mutex_crl);
+
+  while( !_sheduler_buffer.empty() && record_produce --) {
     ptr = _sheduler_buffer.front();
 
     if(ptr == 0) continue;
-    
-    std::unique_lock<std::mutex> mlock_crl(_mutex_crl);
+
+    _mutex_rw.lock();
 
     switch(ptr->type_action) {
       case WRITE:
@@ -186,8 +195,9 @@ void QCache::ops_resolve() {
         _first = 0;
       break;
     }
+
+    _mutex_rw.unlock();
     
-    mlock_crl.unlock(); 
     _sheduler_buffer.pop();
   }
 }
@@ -202,7 +212,6 @@ std::string QCache::to_lock_key(std::string key, size_t type) {
       return _kv_map[key]->val;  
     
     } else if(_kv_tmp.count(key)) {
-    
       return _kv_tmp[key];
     }
 
@@ -223,7 +232,7 @@ std::string QCache::to_lock_key(std::string key, size_t type) {
 // Clear node by key
 void QCache::do_vacuum_cache(std::string key) {
   // If current key isn't exist
-  if( _kv_map.count(key) == 0 ) {
+  if(_kv_map.count(key) == 0) {
     return;
   }
   

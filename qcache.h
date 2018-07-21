@@ -34,7 +34,7 @@ class QCache {
     // Workers pool
     std::vector<std::thread> workers_pool;
     // Mutex for locking resources
-    std::mutex _mutex_crl, _mutex_rw;
+    std::mutex _mutex_crl, _mutex_rw, _m_map_rw;
 
     // Double-linked list for quick displacement
     struct List {

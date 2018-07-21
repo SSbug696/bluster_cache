@@ -2,10 +2,9 @@
 
 Server::Server(size_t max_pool_sz) {
   _cache = new QCache(max_pool_sz);
-  // Round-robin list for sheduler
+  // Round-robin queue for sheduler
   _round_queue = new RRList();
 
-  // Initisalize workers pool
   init_workers_pool();
 
   _assoc_dict_commands["set"]   = SET;
@@ -42,16 +41,15 @@ void Server::do_task() {
   task_struct * t_ptr;
   
   bool is_quote_substring = false;
-  bool to_push = false;
+  bool is_pushed = false;
   char buffer_source[MAX_BUFFER_SIZE];
 
   int chunk_offset = 0;
   int is_flag = 1;
   int wc = 0;
-
-  std::unique_lock<std::mutex> mlock_rt(_mutex_rw);
   
   memset(buffer_source, 0, MAX_BUFFER_SIZE);
+  std::unique_lock<std::mutex> mlock_rt(_mutex_rw);
 
   while(1) {
     memset(tmp_buffer, 0, MAX_BUFFER_SIZE);
@@ -62,13 +60,14 @@ void Server::do_task() {
 
     multi_parts.clear();    
     is_quote_substring = false;
-    to_push = false;
+    is_pushed = false;
 
     // Awaiting wake up
     _writer_cond.wait(mlock_rt);
 
     uid = _round_queue->next_slice(command_line);
     if(uid == -1) {
+      _notify_shed = false;
       continue;
     }
 
@@ -135,12 +134,12 @@ void Server::do_task() {
           }
           
           if(chr_counter > 0 && is_quote_substring == false) {
-            to_push = true;
+            is_pushed = true;
           }
         }
 
         // If EOF of request
-        if( to_push == true || i >= sz - 1 ) {
+        if( is_pushed == true || i >= sz - 1 ) {
           is_quote_substring = false;
           tmp_str = tmp_buffer;
           
@@ -149,7 +148,7 @@ void Server::do_task() {
           memset(tmp_buffer, 0, chr_counter);
           chr_counter = 0;
           counter ++;
-          to_push = false;
+          is_pushed = false;
         }
       }
 
@@ -175,59 +174,59 @@ void Server::do_task() {
       memset(tmp_buffer, 0, sizeof(tmp_buffer));
       
       _mutex_cache.lock();
-      result = "1";
 
-      //switch(COMMAND_ID) {
-      //   case SET:
-      //     if(assets.size() > 0) {
-      //       std::string exp_label = assets.front();
-      //       if( strspn( exp_label.c_str(), "0123456789" ) == exp_label.size() ) {
-      //         expire = atoi( exp_label.c_str() );
-      //       }
-      //     }
+      switch(COMMAND_ID) {
+        case SET:
+          if(assets.size() > 0) {
+            std::string exp_label = assets.front();
+            if( strspn( exp_label.c_str(), "0123456789" ) == exp_label.size() ) {
+              expire = atoi( exp_label.c_str() );
+            }
+          }
           
-      //     // If expire is not defined
-      //     if(expire != 0) {
-      //       result = _cache->put(std::move(key), std::move(value), expire);
-      //     } else {
-      //       result = _cache->put(std::move(key), std::move(value));
-      //     }
-      //   break;
+          // If expire is not defined
+          if(expire != 0) {
+            result = _cache->put(std::move(key), std::move(value), expire);
+          } else {
+            result = _cache->put(std::move(key), std::move(value));
+          }
+        break;
       
-      //   case GET:
-      //     result = _cache->get(std::move(key));
-      //   break;
+        case GET:
+          result = _cache->get(std::move(key));
+        break;
 
-      //   case DEL:
-      //     result = _cache->del(std::move(key));
-      //   break;
+        case DEL:
+          result = _cache->del(std::move(key));
+        break;
 
-      //   case FLUSH:
-      //     result = _cache->flush();
-      //   break;
+        case FLUSH:
+          result = _cache->flush();
+        break;
 
-      //   case SIZE:
-      //     result = _cache->size();
-      //   break;
+        case SIZE:
+          result = _cache->size();
+        break;
       
-      //   case EXIST:
-      //     result = _cache->exist(std::move(key));
-      //   break;
+        case EXIST:
+          result = _cache->exist(std::move(key));
+        break;
 
-      //   case UNKNOWN:
-      //     result = "(unknown)";
-      //   break;
+        case UNKNOWN:
+          result = "(unknown)";
+        break;
 
-      //   case ERR:
-      //     result = "(err)";
-      //   break;
+        case ERR:
+          result = "(err)";
+        break;
 
-      //   default:
-      //     result = "(err)";
-      //   break;
-      // }
+        default:
+          result = "(err)";
+        break;
+      }
 
       _mutex_cache.unlock();
+
       // Clear string vector
       string_parts.clear();
       // Clear assets args
@@ -259,10 +258,10 @@ void Server::do_task() {
         if(chunk_offset == sz) break;
       }
     }
-
+    
+    t_ptr->in_round_counter --;
     memset(buffer_source + sz, 0,  chunk_offset);
     sz = 0;
-    t_ptr->in_round_counter --;
   }
 }
 
@@ -275,9 +274,7 @@ void Server::init_workers_pool() {
 }
 
 int Server::make_socket_non_blocking(int sfd) {
-  int flags;
-
-  flags = fcntl(sfd, F_GETFL, 0);
+  int flags = fcntl(sfd, F_GETFL, 0);
   if(flags < 0) {
     Log().get(LERR) << "FCNTL error";
     exit(EXIT_FAILURE);
@@ -413,7 +410,7 @@ int Server::init(char * port) {
         }
       } else if(ev_set[i].ident != local_s) {
         _recv_bytes_count = read(ev_set[i].ident, _buffer_recv, MAX_BUFFER_SIZE);
-
+        
         if(_recv_bytes_count > 0) {
           tts = tasks[ev_set[i].ident];
           ptr = tts->command;
@@ -438,15 +435,17 @@ int Server::init(char * port) {
 
           // Get size of prefix(service info) for extracting from total size
           size_t sz_prefix = get_len_prefix(sz);
+          
           // Send data with prefix offset
           _round_queue->add(ev_set[i].ident, ptr + sz_prefix, sz);
-          // Increment current pool counter
           tts->in_round_counter ++;
 
-          // Awaiting some worker
+          // Increment current pool counter
           _notify_shed = true;
+
+          // Awaiting some worker
           while(_notify_shed.load(std::memory_order_seq_cst)) {
-            _writer_cond.notify_one();
+            _writer_cond.notify_all();
           }
 
           // Get current byte count
@@ -456,15 +455,12 @@ int Server::init(char * port) {
           memcpy(ptr, &ptr[sz_prefix + sz], len);
           memset(ptr + len, 0, MAX_BUFFER_SIZE - len);
           memset(_buffer_recv, 0, _recv_bytes_count);
-          
           tts->recv_bytes = len;
 
-          continue;
         } else if(errno != EWOULDBLOCK && errno != EAGAIN) {
           tasks[ev_set[i].ident]->status = false;
         }
       } else
-
       if(ev_set[i].ident == local_s) {
         infd = accept(local_s, &in_addr, &in_len);
         if(infd == -1) {
@@ -476,6 +472,8 @@ int Server::init(char * port) {
         if (fd == -1) {
           Log().get(LERR) << "Invalid create FD";
           exit(EXIT_FAILURE);
+        } else {
+          Log().get(LDEBUG) << "New connection with FD #" << fd;
         }
 
         EV_SET(&ev, infd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);

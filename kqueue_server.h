@@ -1,16 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
-//#include <string.h>
 #include <cstring>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <netdb.h>
 #include <unistd.h>
 #include <fcntl.h>
-
 #include <netinet/tcp.h>
 #include <sys/event.h>
-#include <sys/socket.h>
 #include <netdb.h>
 #include <errno.h>
 #include <list>
@@ -32,11 +28,7 @@
 
 #define MAX_BUFFER_SIZE 2048
 #define MAXEVENTS 1024
-#define WORKERS_POOL 3
-#define CHUNK_SIZE 100
-#define TIME_DIFF 0xff
-#define MAX_KEY_SZ 800
-#define MAX_VALUE_SZ 1000
+#define WORKERS_POOL 4
 #define MAX_LEN_PREFIX 10
 
 class Server {
@@ -60,8 +52,10 @@ class Server {
     int send_bytes;
     int recv_bytes;
     // Status of current task
-    std::atomic<bool> status;
-    std::atomic<size_t> in_round_counter;
+    //std::atomic<bool> 
+    int status;
+    //std::atomic<size_t> 
+    size_t in_round_counter;
     char send_buffer[MAX_BUFFER_SIZE];
     char command[MAX_BUFFER_SIZE];
   };
@@ -69,9 +63,7 @@ class Server {
   // Base struct of connection status
   std::map<size_t, task_struct *> tasks;
 
-  int sfd, s;
-  int efd;
-  int kq;
+  int sfd, s, kq;
 
   struct kevent ev;
   struct kevent ev_set[MAXEVENTS];

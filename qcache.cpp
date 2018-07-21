@@ -10,7 +10,7 @@ QCache::QCache(size_t size_queue) {
   _up_ttl = 0;
   std::unordered_map<std::string, size_t> map_expire_disable;
   // Set map for old node. This hash can't be removed
-  _expires_leave[1] = map_expire_disable;    
+  _expires_leave[1] = map_expire_disable;
 }
 
 void QCache::ops_sheduler() {
@@ -112,7 +112,7 @@ void QCache::check_expire() {
   std::unique_lock<std::mutex> mlock_crl(_mutex_crl);
   size_t time_stamp = time(NULL);
 
-  it = _expires_leave.begin();  
+  it = _expires_leave.begin();
   // Node with current timestamp is found
   for(;it != _expires_leave.end();) {
     // Iterator for each node
@@ -205,10 +205,10 @@ std::string QCache::to_lock_key(std::string key, size_t type) {
     if(_kv_map.count(key)) {
       if(_kv_tmp.count(key)) {
         _kv_tmp.erase(key);
-      } 
+      }
 
       return _kv_map[key]->val;
-    
+
     } else if(_kv_tmp.count(key)) {
       return _kv_tmp[key];
     }
@@ -351,7 +351,7 @@ void QCache::write(std::string && key, std::string && val, size_t expire) {
             // Repeat block code.***
             _first->prev = target_node;
             target_node->next = _first;
-            target_node->prev = 0; 
+            target_node->prev = 0;
             _first = target_node;
 
           } else if(l_node && r_node) {

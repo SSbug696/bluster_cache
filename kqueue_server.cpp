@@ -57,7 +57,7 @@ void Server::do_task() {
     is_flag = 1;
     wc = 0;
 
-    multi_parts.clear();    
+    multi_parts.clear();
     is_quote_substring = false;
     is_pushed = false;
 
@@ -103,7 +103,7 @@ void Server::do_task() {
 
     sz_inserts = multi_parts.size();
     counter = 0;
-    
+
     for(size_t k = 0; k < sz_inserts; k ++) {
       // Set default command value
       command_line = multi_parts[k];
@@ -114,7 +114,7 @@ void Server::do_task() {
       for(size_t i = 0; i < sz; i ++) {
         // Isn't whitespace
         if(command_line[i] != ' ') {
-          // Trigger for define end substring and push substring to buffer  
+          // Trigger for define end substring and push substring to buffer
           if(command_line[i] == '"') {
             if(command_line[i - 1] != '\\') {
               is_quote_substring = !is_quote_substring;
@@ -141,9 +141,9 @@ void Server::do_task() {
         if( is_pushed == true || i >= sz - 1 ) {
           is_quote_substring = false;
           tmp_str = tmp_buffer;
-          
+
           string_parts.push_back(tmp_str);
-          
+
           memset(tmp_buffer, 0, chr_counter);
           chr_counter = 0;
           counter ++;
@@ -154,7 +154,7 @@ void Server::do_task() {
       //  Get command ID
       COMMAND_ID = _assoc_dict_commands[ string_parts[0] ];
 
-      for(int i = 1; i < counter; i ++) {                  
+      for(int i = 1; i < counter; i ++) {
         switch(i) {
           case 1:
             key = string_parts[i];
@@ -171,7 +171,7 @@ void Server::do_task() {
       }
 
       memset(tmp_buffer, 0, sizeof(tmp_buffer));
-      
+
       _mutex_cache.lock();
 
       switch(COMMAND_ID) {
@@ -182,7 +182,7 @@ void Server::do_task() {
               expire = atoi( exp_label.c_str() );
             }
           }
-          
+
           // If expire is not defined
           if(expire != 0) {
             result = _cache->put(std::move(key), std::move(value), expire);
@@ -190,7 +190,7 @@ void Server::do_task() {
             result = _cache->put(std::move(key), std::move(value));
           }
         break;
-      
+
         case GET:
           result = _cache->get(std::move(key));
         break;
@@ -206,7 +206,7 @@ void Server::do_task() {
         case SIZE:
           result = _cache->size();
         break;
-      
+
         case EXIST:
           result = _cache->exist(std::move(key));
         break;
@@ -232,15 +232,15 @@ void Server::do_task() {
       assets.clear();
       // Reset expire
       expire = 0;
-      counter = 0;  
+      counter = 0;
     }
-    
+
     sz = result.size();
     memset(buffer_source + sz, 0, MAX_BUFFER_SIZE - sz);
-    result.copy(buffer_source, sz);    
+    result.copy(buffer_source, sz);
 
     //While until buffer isn't flushed and don't exist error
-    while(t_ptr->status && is_flag) {    
+    while(t_ptr->status && is_flag) {
       // Write data by chunks with chunk_offset
       wc = write(uid, buffer_source + chunk_offset,  sz - chunk_offset);
 
@@ -257,7 +257,7 @@ void Server::do_task() {
         if(chunk_offset == sz) break;
       }
     }
-    
+
     t_ptr->in_round_counter --;
     memset(buffer_source + sz, 0,  chunk_offset);
     sz = 0;
@@ -289,11 +289,11 @@ int Server::make_socket_non_blocking(int sfd) {
 
   int enable_flag = 1;
   linger.l_onoff = 0;
-  linger.l_linger = 0;  
+  linger.l_linger = 0;
 
   setsockopt(sfd, SOL_SOCKET, SO_LINGER,  &linger, sizeof(linger));
   setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &enable_flag, sizeof(enable_flag));
-  setsockopt(sfd, SOL_SOCKET, TCP_NODELAY, &enable_flag, sizeof(enable_flag)); 
+  setsockopt(sfd, SOL_SOCKET, TCP_NODELAY, &enable_flag, sizeof(enable_flag));
   return 0;
 }
 
@@ -305,7 +305,7 @@ int Server::create_and_bind(char * port) {
   memset(&hints, 0, sizeof(addrinfo));
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = AI_PASSIVE;    
+  hints.ai_flags = AI_PASSIVE;
 
   s = getaddrinfo(NULL, port, &hints, &result);
   if(s != 0) {
@@ -357,7 +357,7 @@ int Server::init(char * port) {
     Log().get(LERR) << "Error creating a socket";
     exit(EXIT_FAILURE);
   }
-  
+
   s = listen(local_s, SOMAXCONN);
   if(s == -1) {
     Log().get(LERR) << "Listen error";
@@ -371,7 +371,7 @@ int Server::init(char * port) {
   in_len = sizeof(in_addr);
 
   kq = kqueue();
-    
+
   EV_SET(&ev, local_s, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0,	NULL);
 	if(kevent(kq, &ev, 1, 0, 0, NULL) == -1) {
     Log().get(LERR) << "Critical kevent error";
@@ -466,7 +466,7 @@ int Server::init(char * port) {
           Log().get(LERR) << "Accept error";
           exit(EXIT_FAILURE);
         }
-        
+
         int fd = make_socket_non_blocking(infd);
         if (fd == -1) {
           Log().get(LERR) << "Invalid create FD";
@@ -480,7 +480,7 @@ int Server::init(char * port) {
 
         EV_SET(&ev, infd, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
         kevent(kq, &ev, 1, NULL, 0, NULL);
-        
+
         // Init connection struct
         task_struct * ts = new task_struct();
         ts->recv_bytes = 0;
@@ -488,10 +488,10 @@ int Server::init(char * port) {
         ts->status = true;
         ts->in_round_counter = 0;
         tasks[infd] = ts;
-      }  
+      }
     }
   }
-  
+
   return 0;
 }
 
@@ -508,7 +508,7 @@ int Server::get_len_prefix(int number) {
 // Get data size in bytes
 int Server::get_msg_sz(char buffer[], const size_t SZ) {
   if(buffer[0] != '[') return -1;
-  
+
   bool flag = false;
   size_t msg_len = 0;
   size_t msg_index = 1;
@@ -524,7 +524,7 @@ int Server::get_msg_sz(char buffer[], const size_t SZ) {
     msg_len = msg_len * 10 + (buffer[msg_index] - '0');
     msg_index ++;
   }
-  
+
   // If empty scoupe
   if(msg_index == 1 || !flag) return -1;
   return msg_len;

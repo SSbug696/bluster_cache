@@ -112,17 +112,16 @@ void QCache::check_expire() {
   std::unique_lock<std::mutex> mlock_crl(_mutex_crl);
   size_t time_stamp = time(NULL);
 
-  it = _expires_leave.begin();   
+  it = _expires_leave.begin();  
   // Node with current timestamp is found
   for(;it != _expires_leave.end();) {
-    // Iterator for each node 
+    // Iterator for each node
     v_iter = it->second.begin();
 
     for(;v_iter != it->second.end(); ) {
       // Remove duplication in the buffer, counter for blocked nodes
-      if(v_iter->second <= time_stamp && v_iter->second > 0 ) { 
-        // Guard for pair set/get       
-
+      if(v_iter->second <= time_stamp && v_iter->second > 0 ) {
+        // Guard for pair set/get
         _mutex_rw.lock();
         do_vacuum_cache(v_iter->first);
         _mutex_rw.unlock();
@@ -188,7 +187,7 @@ void QCache::ops_resolve() {
 
         std::unordered_map<std::string, size_t> map_expire_disable;
         // Set map for old node. This hash can't be removed
-        _expires_leave[1] = map_expire_disable; 
+        _expires_leave[1] = map_expire_disable;
 
         _last = 0;
         _first = 0;
@@ -202,13 +201,13 @@ void QCache::ops_resolve() {
 }
 
 std::string QCache::to_lock_key(std::string key, size_t type) {
-  if(type == 1) {   
+  if(type == 1) {  
     if(_kv_map.count(key)) {
       if(_kv_tmp.count(key)) {
         _kv_tmp.erase(key);
       } 
 
-      return _kv_map[key]->val;  
+      return _kv_map[key]->val;
     
     } else if(_kv_tmp.count(key)) {
       return _kv_tmp[key];
@@ -224,7 +223,7 @@ std::string QCache::to_lock_key(std::string key, size_t type) {
     }
   }
 
-  return "(null)"; 
+  return "(null)";
 }
 
 // Clear node by key
@@ -258,7 +257,7 @@ void QCache::do_vacuum_cache(std::string key) {
       // If current node isn't the first(left and right nodes is exist)
       l_node->next = r_node;
       r_node->prev = l_node;
-    } 
+    }
 
   } else {
     // If the node isn't one rebalance list
@@ -305,7 +304,7 @@ void QCache::write(std::string && key, std::string && val, size_t expire) {
 
     // If added node with uniq key
     if(target_node == 0) {
-      // Set new item 
+      // Set new item
       target_node = new List();
       target_node->next = _first;
       target_node->val = val;
@@ -326,16 +325,15 @@ void QCache::write(std::string && key, std::string && val, size_t expire) {
       }
 
     } else if(target_node != 0) {
-
       //  Checking exist curent key in garbage buffer
       if( _expires_leave.count( target_node->time_expire_label ) ) {
         if( _expires_leave[target_node->time_expire_label].count(target_node->key) ) {
-          // Erase key from flush buffer(set new value of time expire)
+        // Erase key from flush buffer(set new value of time expire)
           _expires_leave[target_node->time_expire_label].erase(target_node->key);
         }
-      } 
+      }
 
-      //  Update value of record
+      // Update value of record
       target_node->val = val;
       /* If key is exist and cache is overload */
       if(_kv_map.size() > 1) {
@@ -363,7 +361,7 @@ void QCache::write(std::string && key, std::string && val, size_t expire) {
 
             _first->prev = target_node;
             target_node->next = _first;
-            target_node->prev = 0; 
+            target_node->prev = 0;
             _first = target_node;
           }
         }
@@ -380,7 +378,7 @@ void QCache::write(std::string && key, std::string && val, size_t expire) {
   }
 
   // Set time expire
-  if(expire != 0) { 
+  if(expire != 0) {
     _kv_map[key]->time_expire_label = t_leave;
     _expires_leave[t_leave][key] = t_leave;
   } else _kv_map[key]->time_expire_label = t_leave;

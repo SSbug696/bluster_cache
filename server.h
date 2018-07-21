@@ -83,8 +83,8 @@ protected:
   int create_and_bind(char *);
   void init_workers_pool();
   void do_task();
-  inline void rm_fd(size_t);
-  inline void clear_buffer(size_t);
+  void rm_fd(size_t);
+  void clear_buffer(size_t);
   inline int get_msg_sz(char[], const size_t);
   inline int get_len_prefix(int);
 

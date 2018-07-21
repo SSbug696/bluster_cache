@@ -86,7 +86,6 @@ int Server::init(char * port) {
   while(1) {
     int n = epoll_wait(efd, events, MAXEVENTS, -1);
     for(int i = 0; i < n; i++) {
-
       if(
         events[i].events & EPOLLERR ||
         events[i].events & EPOLLRDHUP ||
@@ -159,7 +158,7 @@ int Server::init(char * port) {
 
           // Get byte length
           int sz = get_msg_sz(ptr, tts->recv_bytes);
-          if(sz == -1) {  
+          if(sz == -1) {
             memset(_buffer_recv, 0, _recv_bytes_count);
             continue;
           }

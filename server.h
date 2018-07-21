@@ -87,7 +87,6 @@ protected:
   inline void clear_buffer(size_t);
   inline int get_msg_sz(char[], const size_t);
   inline int get_len_prefix(int);
-  void notify_shed();
 
 public:
   Server(size_t);

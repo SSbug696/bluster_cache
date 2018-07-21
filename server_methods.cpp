@@ -342,3 +342,13 @@ int Server::make_socket_non_blocking(int sfd) {
 
   return 0;
 }
+
+void Server::clear_buffer(size_t fd) {
+  delete tasks[fd];
+  tasks.erase(fd);
+}
+
+void Server::rm_fd(size_t fd) {
+  memset(_buffer_recv, 0, MAX_BUFFER_SIZE);
+  close(fd);
+}

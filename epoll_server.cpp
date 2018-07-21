@@ -1,15 +1,5 @@
 #include "server.h"
 
-void Server::clear_buffer(size_t fd) {
-  delete tasks[fd];
-  tasks.erase(fd);
-}
-
-void Server::rm_fd(size_t fd) {
-  memset(_buffer_recv, 0, MAX_BUFFER_SIZE);
-  close(fd);
-}
-
 // Get length of prefix
 int Server::get_len_prefix(int number) {
   size_t prefix_counter = 2;
@@ -91,7 +81,6 @@ int Server::init(char * port) {
         events[i].events & EPOLLRDHUP ||
         events[i].events & EPOLLHUP
       ) {
-
         if(tasks.find(events[i].data.fd) != tasks.end()) {
           // Initialize pending completion
           tasks[events[i].data.fd]->status = false;

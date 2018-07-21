@@ -14,14 +14,13 @@
 #include <sstream>
 #include <iostream>
 #include <algorithm>
-#include <time.h> 
+#include <time.h>
 #include <iterator>
 #include <thread>
 #include <mutex>
 #include <atomic>
 #include <map>
 #include <utility>
-
 #include "qcache.h"
 #include "rrlist.h"
 #include "log.h"
@@ -32,29 +31,40 @@
 #define MAX_LEN_PREFIX 10
 
 class Server {
-  enum  actions { UNKNOWN = 0, ERR, SET, GET, DEL, EXIST, FLUSH, SIZE };
+  enum actions
+  {
+    UNKNOWN = 0,
+    ERR,
+    SET,
+    GET,
+    DEL,
+    EXIST,
+    FLUSH,
+    SIZE
+  };
 
   std::condition_variable _writer_cond;
   std::atomic<bool> _is_locked, _notify_shed;
   //bool _notify_shed;
-  std::map<std::string, size_t> _assoc_dict_commands;  
+  std::map<std::string, size_t> _assoc_dict_commands;
   char nb[MAX_LEN_PREFIX];
   // Round-robin queue for request notifications pipeline
   RRList *_round_queue;
   // LRU backand
-  QCache * _cache;
-  
+  QCache *_cache;
+
   // Task struct
-  struct task_struct {
+  struct task_struct
+  {
     // Activity flag current task, not multiple context with current task id
     bool processing;
     // Flag of task id presence in the pipeline
     int send_bytes;
     int recv_bytes;
     // Status of current task
-    //std::atomic<bool> 
+    //std::atomic<bool>
     int status;
-    //std::atomic<size_t> 
+    //std::atomic<size_t>
     size_t in_round_counter;
     char send_buffer[MAX_BUFFER_SIZE];
     char command[MAX_BUFFER_SIZE];
@@ -77,18 +87,19 @@ class Server {
   char _buffer_recv[MAX_BUFFER_SIZE];
 
   int make_socket_non_blocking(int);
-  int create_and_bind (char *);
+  int create_and_bind(char *);
   void init_workers_pool();
   void do_task();
   inline void rm_fd(size_t);
   inline void clear_buffer(size_t);
-  inline int get_msg_sz(char [], const size_t);
+  inline int get_msg_sz(char[], const size_t);
   inline int get_len_prefix(int);
   void notify_shed();
 
 public:
   Server(size_t);
-  ~Server() {
+  ~Server()
+  {
     delete _round_queue;
     delete _cache;
   }

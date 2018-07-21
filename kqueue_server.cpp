@@ -43,7 +43,6 @@ void Server::do_task() {
   bool is_quote_substring = false;
   bool is_pushed = false;
   char buffer_source[MAX_BUFFER_SIZE];
-
   int chunk_offset = 0;
   int is_flag = 1;
   int wc = 0;

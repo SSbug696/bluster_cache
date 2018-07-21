@@ -141,7 +141,6 @@ void QCache::check_expire() {
   it_lock = _map_locked.begin();
   for(;it_lock != _map_locked.end(); it_lock ++) {
     if(_expires_leave.count(it_lock->second)) {
-
       if(_expires_leave[it_lock->second].count(it_lock->first)) {
         _expires_leave[it_lock->second].erase(it_lock->first);
       }
@@ -201,7 +200,7 @@ void QCache::ops_resolve() {
 }
 
 std::string QCache::to_lock_key(std::string key, size_t type) {
-  if(type == 1) {  
+  if(type == 1) {
     if(_kv_map.count(key)) {
       if(_kv_tmp.count(key)) {
         _kv_tmp.erase(key);
@@ -287,7 +286,6 @@ void QCache::write(std::string && key, std::string && val, size_t expire) {
 
   // Inserting the first element
   if( _last == 0 || _first == 0) {
-
     List * target_node = new List();
     target_node->key = key;
     target_node->val = val;

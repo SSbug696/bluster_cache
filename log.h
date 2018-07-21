@@ -22,7 +22,7 @@ class Log {
     // Alert lvl
     const log_types LVL_REPORTING = LDEBUG;
     // File I/O resolution for file ops
-    const bool FIO_FLAG = FILE_LOG; 
+    const bool FIO_FLAG = FILE_LOG;
     // File I/O resolution for command prompt
     const bool CIO_ENABLED = CONSOLE_LOG;
 

@@ -15,11 +15,11 @@ class RRList {
   std::mutex _m_lock;
   int _count_nodes;
   Node *_head, *_it_ptr;
-  
+
   public:
     RRList(): _count_nodes(0), _head(nullptr) {};
     ~RRList();
-    
+
     void add(int, char buff[], size_t);
     void rm(int);
     void rm_all(int);

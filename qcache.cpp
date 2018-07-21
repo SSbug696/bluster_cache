@@ -62,7 +62,7 @@ std::string QCache::put(std::string && key, std::string && val, size_t expire) {
   _mutex_rw.lock();
   _kv_tmp[key] = val;
   _mutex_rw.unlock();
-  
+
   push(ptr);
   return ONE;
 }
@@ -73,9 +73,8 @@ std::string QCache::put(std::string && key, std::string && val) {
   ptr->val = std::move(val);
   ptr->expire = 0;
   ptr->type_action = WRITE;
-  
   _mutex_rw.lock();
-  _kv_tmp[key] = val;  
+  _kv_tmp[key] = val;
   _mutex_rw.unlock();
 
   push(ptr);
@@ -216,7 +215,6 @@ std::string QCache::to_lock_key(std::string key, size_t type) {
     }
 
   } else if(type == 2) {
-
     if(_kv_tmp.count(key)) {
       _kv_tmp.erase(key);
     }
@@ -239,10 +237,8 @@ void QCache::do_vacuum_cache(std::string key) {
   List * target_node = _kv_map[key];
 
   if(target_node->prev == 0 && target_node->next == 0) {
-
     _last = 0;
     _first = 0;
-
   } else if(target_node->prev != 0) {
     // If not the first item
     List * l_node  = target_node->prev;
@@ -272,7 +268,7 @@ void QCache::do_vacuum_cache(std::string key) {
     }
   }
 
-  to_lock_key(key, 2); 
+  to_lock_key(key, 2);
 }
 
 // Write data to cache
@@ -285,7 +281,7 @@ void QCache::write(std::string && key, std::string && val, size_t expire) {
   //  The hash of the lifetime records
   if( _expires_leave.count(t_leave) == 0) {
     std::unordered_map<std::string, size_t> map_expire_disable;
-    _expires_leave[t_leave] = map_expire_disable;   
+    _expires_leave[t_leave] = map_expire_disable;
   }
 
   List * target_node = 0;
@@ -341,13 +337,10 @@ void QCache::write(std::string && key, std::string && val, size_t expire) {
 
       //  Update value of record
       target_node->val = val;
-    
       /* If key is exist and cache is overload */
       if(_kv_map.size() > 1) {
-
         List * l_node = 0;
         List * r_node = 0;
-
         // If current item isn't first(left node is exist)
         if(target_node->prev != 0) {
           l_node  = target_node->prev;
@@ -380,7 +373,7 @@ void QCache::write(std::string && key, std::string && val, size_t expire) {
 
   // Pointer to tail node
   target_node = _last;
-  while( _kv_map.size() > _limit && target_node) { 
+  while( _kv_map.size() > _limit && target_node) {
     // Removing the сache tail
     do_vacuum_cache(target_node->key);
     target_node = target_node->prev;

@@ -3,7 +3,7 @@
 
 RRList::~RRList() {
   _m_lock.lock();
-  if(_count_nodes) { 
+  if(_count_nodes) {
     while(_head->r != nullptr) {
       _it_ptr = _head;
       _head->l->r = nullptr;
@@ -28,7 +28,7 @@ int RRList::next(int direction) {
 
   if(_count_nodes != 0) {
     fd = _head->fd;
-    
+
     // If exist right node (-1, 0, 1) - left, don't offset, right
     if(_count_nodes > 1) {
       if(direction > 0) {
@@ -102,9 +102,9 @@ void RRList::add(int fd, char buffer[], size_t len) {
 }
 
 void RRList::rm(int fd) {
-  _m_lock.lock(); 
+  _m_lock.lock();
   int rm_count = 0;
-  
+
   if(_head != nullptr) {
     for(int i = 0; i < _count_nodes; i ++) {
       if(_head->fd == fd) {
@@ -133,8 +133,8 @@ void RRList::rm(int fd) {
 }
 
 void RRList::rm_all(int fd) {
-  _m_lock.lock(); 
-    
+  _m_lock.lock();
+
   int rm_count = 0;
   
   if(_head != nullptr) {
@@ -143,9 +143,8 @@ void RRList::rm_all(int fd) {
         if(_count_nodes - rm_count > 1) {
           _head->r->l = _head->l;
           _head->l->r = _head->r;
-          
           _it_ptr = _head->r;
-          
+
           delete _head;
           _head = _it_ptr;
         } else {
@@ -163,7 +162,7 @@ void RRList::rm_all(int fd) {
   _m_lock.unlock();
 }
 
-void RRList::print() {  
+void RRList::print() {
   _m_lock.lock();
 
   _it_ptr = _head;

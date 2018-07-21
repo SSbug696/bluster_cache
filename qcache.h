@@ -30,7 +30,7 @@ class QCache {
     const std::string ZERO = "0";
     // Life time point
     size_t _up_ttl;
-    
+
     // Workers pool
     std::vector<std::thread> workers_pool;
     // Mutex for locking resources
@@ -110,7 +110,7 @@ class QCache {
     std::string del(std::string &&);
     std::string flush();
     std::string size();
-    std::string exist(std::string &&);    
+    std::string exist(std::string &&);
     std::atomic<size_t> atomic_lock_nr;
     QCache(size_t);
 };

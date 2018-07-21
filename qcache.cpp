@@ -97,7 +97,7 @@ std::string QCache::get(std::string && key) {
 
 std::string QCache::exist(std::string && key) {
   std::string result = get(std::forward<std::string>( key ));
-  
+
   if(result != "(null)") {
     return ONE;
   } else return ZERO;
@@ -196,7 +196,7 @@ void QCache::ops_resolve() {
     }
 
     _mutex_rw.unlock();
-    
+
     _sheduler_buffer.pop();
   }
 }
@@ -233,7 +233,7 @@ void QCache::do_vacuum_cache(std::string key) {
   if(_kv_map.count(key) == 0) {
     return;
   }
-  
+
   List * target_node = _kv_map[key];
 
   if(target_node->prev == 0 && target_node->next == 0) {
@@ -243,7 +243,7 @@ void QCache::do_vacuum_cache(std::string key) {
     // If not the first item
     List * l_node  = target_node->prev;
     List * r_node  = target_node->next;
-    
+
     // If last node
     if(r_node == 0) {
       // If last item (last node have the tail is value as 0)
@@ -259,7 +259,7 @@ void QCache::do_vacuum_cache(std::string key) {
       l_node->next = r_node;
       r_node->prev = l_node;
     } 
-  
+
   } else {
     // If the node isn't one rebalance list
     if(_first->next != 0) {
@@ -317,7 +317,7 @@ void QCache::write(std::string && key, std::string && val, size_t expire) {
       // Set as _first node
       _first->prev = target_node;
       _first = target_node;
-      
+
       // Link to _last node
       if(_kv_map.size() == 1) {
         _last = _first->next;

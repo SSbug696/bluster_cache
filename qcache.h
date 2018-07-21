@@ -42,9 +42,9 @@ class QCache {
       List * next;
       std::string val;
       std::string key;
-      
+
       size_t time_expire_label;
-      
+
       List() {
         time_expire_label = -1;
         prev = 0;
@@ -90,7 +90,7 @@ class QCache {
     inline void write(std::string &&, std::string &&, size_t);
     // Method with mutex trigger for access to records
     inline std::string to_lock_key(std::string, size_t);
-    
+
     void ttl_shedule();
     void ops_sheduler();
 

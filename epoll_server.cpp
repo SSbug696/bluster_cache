@@ -40,7 +40,7 @@ void Server::do_task() {
 
   // Pointer to request struct
   task_struct * t_ptr;
-  
+
   bool is_quote_substring = false;
   bool is_pushed = false;
   char buffer_source[MAX_BUFFER_SIZE];
@@ -233,7 +233,7 @@ void Server::do_task() {
       assets.clear();
       // Reset expire
       expire = 0;
-      counter = 0;  
+      counter = 0;
     }
 
     sz = result.size();
@@ -432,7 +432,7 @@ int Server::init(char * port) {
 
         event.events = EPOLLRDHUP | EPOLLIN | EPOLLOUT | EPOLLERR;
         event.data.fd = nfd;
-        
+
         s = epoll_ctl(efd, EPOLL_CTL_ADD, nfd, &event);
         if(s  == -1) {
           Log().get(LERR) << "CTL critical error";
@@ -493,7 +493,7 @@ int Server::init(char * port) {
           memcpy(ptr, &ptr[sz_prefix + sz], len);
           memset(ptr + len, 0, MAX_BUFFER_SIZE - len);
           memset(_buffer_recv, 0, _recv_bytes_count);
-          
+
           tts->recv_bytes = len;
         } else if(errno != EWOULDBLOCK && errno != EAGAIN) {
           events[i].events |= EPOLLERR;

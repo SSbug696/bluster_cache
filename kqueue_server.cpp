@@ -39,14 +39,14 @@ void Server::do_task() {
   size_t chr_counter = 0;
 
   task_struct * t_ptr;
-  
+
   bool is_quote_substring = false;
   bool is_pushed = false;
   char buffer_source[MAX_BUFFER_SIZE];
   int chunk_offset = 0;
   int is_flag = 1;
   int wc = 0;
-  
+
   memset(buffer_source, 0, MAX_BUFFER_SIZE);
   std::unique_lock<std::mutex> mlock_rt(_mutex_rw);
 
@@ -108,7 +108,7 @@ void Server::do_task() {
       // Set default command value
       command_line = multi_parts[k];
       sz = command_line.size();
-      
+
       memset(tmp_buffer, 0, MAX_BUFFER_SIZE);
 
       for(size_t i = 0; i < sz; i ++) {
@@ -131,7 +131,7 @@ void Server::do_task() {
           if(is_quote_substring == true) {
             tmp_buffer[chr_counter ++] = command_line[i];
           }
-          
+
           if(chr_counter > 0 && is_quote_substring == false) {
             is_pushed = true;
           }
@@ -409,7 +409,7 @@ int Server::init(char * port) {
         }
       } else if(ev_set[i].ident != local_s) {
         _recv_bytes_count = read(ev_set[i].ident, _buffer_recv, MAX_BUFFER_SIZE);
-        
+
         if(_recv_bytes_count > 0) {
           tts = tasks[ev_set[i].ident];
           ptr = tts->command;
@@ -425,16 +425,16 @@ int Server::init(char * port) {
           memcpy(ptr + sz_b, _buffer_recv, _recv_bytes_count);
           tts->recv_bytes += _recv_bytes_count;
 
-          // Get byte length 
+          // Get byte length
           int sz = get_msg_sz(ptr, tts->recv_bytes);
-          if(sz == -1) {  
+          if(sz == -1) {
             memset(_buffer_recv, 0, _recv_bytes_count);
             continue;
           }
 
           // Get size of prefix(service info) for extracting from total size
           size_t sz_prefix = get_len_prefix(sz);
-          
+
           // Send data with prefix offset
           _round_queue->add(ev_set[i].ident, ptr + sz_prefix, sz);
           tts->in_round_counter ++;

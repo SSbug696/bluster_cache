@@ -38,7 +38,7 @@ int RRList::next(int direction) {
       }
     }
   } else fd = -1;
-  
+
   _m_lock.unlock();
   return fd;
 }
@@ -113,7 +113,6 @@ void RRList::rm(int fd) {
 
           _head->r->l = _head->l;
           _head->l->r = _head->r;
-          
           delete _head;
           _head = _it_ptr;
         } else {
@@ -134,7 +133,6 @@ void RRList::rm(int fd) {
 
 void RRList::rm_all(int fd) {
   _m_lock.lock();
-
   int rm_count = 0;
   
   if(_head != nullptr) {

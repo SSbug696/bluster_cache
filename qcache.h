@@ -22,10 +22,10 @@ class QCache {
     // ID's of action
     enum  actions { WRITE = 1, REMOVE_ONCE, REMOVE_ALL, GET_ALL };
     // Period check expire
-    const size_t TRATE_CHECK_TTL = 1;
-    const size_t TRATE_CHECK_BF = 100000;
-    const size_t MAX_REQ_PROCESSING = 500;
-    int _limit, _current_sz;
+    const size_t TRATE_CHECK_TTL = 150000;
+    const size_t MAX_REQ_PROCESSING = 100000;
+    size_t _limit;
+    int _current_sz;
     const std::string ONE = "1";
     const std::string ZERO = "0";
     // Life time point

@@ -16,7 +16,7 @@ QCache::QCache(size_t size_queue) {
 void QCache::ops_sheduler() {
   while(1) {
     check_expire();
-    usleep(TRATE_CHECK_BF);
+    usleep(TRATE_CHECK_TTL);
     ops_resolve();
   }
 }

@@ -1,6 +1,7 @@
 #include "log.h"
 
 std::ostringstream & Log::get(log_types level) {
+  LVL_REPORTING = (log_types)LOG_TYPE;
   msg_lvl = level;
   auto now = std::chrono::system_clock::now();
   auto in_time_t = std::chrono::system_clock::to_time_t(now);
@@ -19,7 +20,7 @@ Log::~Log() {
       if(msg_lvl >= LWARN) {
         auto now = std::chrono::system_clock::now();
         auto in_time_t = std::chrono::system_clock::to_time_t(now);
-
+        
         std::stringstream file_name;
         file_name << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d_%H:%m") << ".log";
 
@@ -38,7 +39,7 @@ Log::~Log() {
 
 std::string Log::get_enum_str(log_types n) {
   std::string type;
-
+  
   switch(n) {
     case LINFO:
       type = "INFO";
@@ -46,16 +47,16 @@ std::string Log::get_enum_str(log_types n) {
 
     case LDEBUG:
       type = "DEBUG";
-    break;
+    break;     
 
     case LWARN:
       type = "WARNING";
     break;
 
     case LERR:
-      type = "ERROR";
+      type = "ERROR";  
     break;
   }
-
+  
   return type;
 }

@@ -22,7 +22,6 @@
 #include <utility>
 #include "qcache.h"
 #include "rrlist.h"
-#include "log.h"
 
 #ifdef __APPLE__
   #include "multiplexor_kqueue.h"
@@ -31,6 +30,8 @@
 #elif __UNIX__
   #include "multiplexor_kqueue.h"
 #endif
+
+#include "log.h"
 
 class Server: Multiplexor {
 protected:
@@ -47,7 +48,6 @@ protected:
 
   std::condition_variable _writer_cond;
   std::atomic<bool> _is_locked, _notify_shed;
-  //bool _notify_shed;
   std::map<std::string, size_t> _assoc_dict_commands;
   char nb[MAX_LEN_PREFIX];
   // Round-robin queue for request notifications pipeline
@@ -63,10 +63,8 @@ protected:
     int send_bytes;
     int recv_bytes;
     // Status of current task
-    //std::atomic<bool>
-    int status;
-    //std::atomic<size_t>
-    size_t in_round_counter;
+    std::atomic<bool> status;
+    std::atomic<size_t> in_round_counter;
     char send_buffer[MAX_BUFFER_SIZE];
     char command[MAX_BUFFER_SIZE];
   };
@@ -80,7 +78,7 @@ protected:
   char _buffer_recv[MAX_BUFFER_SIZE];
 
   int make_socket_non_blocking(int);
-  int create_and_bind(char *);
+  int create_and_bind(size_t);
   void init_workers_pool();
   void do_task();
   void rm_fd(size_t);
@@ -95,5 +93,5 @@ public:
     delete _cache;
   }
 
-  int init(char *);
+  int init(size_t);
 };

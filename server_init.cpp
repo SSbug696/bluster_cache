@@ -1,13 +1,17 @@
 #include "server.h"
+#include "config_reader.h"
 #include <iostream>
-
-#define CACHE_POOL_SIZE 10000
+#include <map>
 
 int main (int argc, char * argv[]) {
-  Server server(CACHE_POOL_SIZE);
+  CfgReader cfg_reader;
+  std::map<std::string, size_t> & cfg = cfg_reader.read();
+  
+  Server server(cfg["CACHE_POOL_SIZE"]);
+  
   std::clog << "Server is running on "
-            << argv[1] << " port with pool "
-            << CACHE_POOL_SIZE << " bytes \n" << std::endl;
+            << cfg["PORT"] << " port with pool "
+            << cfg["CACHE_POOL_SIZE"] << " bytes \n" << std::endl;
 
-  server.init(argv[1]);
+  server.init(cfg["PORT"]);
 }

@@ -35,7 +35,7 @@ int Server::get_msg_sz(char buffer[], const size_t SZ) {
   return msg_len;
 }
 
-int Server::init(char * port) {
+int Server::init(size_t port) {
   struct sockaddr in_addr;
   socklen_t in_len;
   task_struct * tts;

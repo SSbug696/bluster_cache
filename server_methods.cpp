@@ -15,7 +15,7 @@ Server::Server(size_t max_pool_sz) {
   _assoc_dict_commands["size"]  = SIZE;
 }
 
-int Server::create_and_bind(char * port) {
+int Server::create_and_bind(size_t port) {
   struct addrinfo hints;
   struct addrinfo *result, *rp;
   int s, sfd;
@@ -25,7 +25,7 @@ int Server::create_and_bind(char * port) {
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_flags = AI_PASSIVE;
 
-  s = getaddrinfo(NULL, port, &hints, &result);
+  s = getaddrinfo(NULL, std::to_string(port).c_str(), &hints, &result);
   if(s != 0) {
     Log().get(LERR) << "Getaddrinfo:" << gai_strerror(s);
     exit(EXIT_FAILURE);

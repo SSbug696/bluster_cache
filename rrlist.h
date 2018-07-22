@@ -2,13 +2,15 @@
 #include <string>
 #include <mutex>
 
+#include "cache_options.h"
+
 class RRList {
   private:
     struct Node {
       Node *r;
       Node *l;
       int fd;
-      char buffer[2048];
+      char buffer[MAX_BUFFER_SIZE];
       size_t ln;
     };
 

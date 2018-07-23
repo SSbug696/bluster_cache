@@ -10,9 +10,9 @@ CMakeFiles
 ./src
 *.log
 *.cmake
-./CMakeFiles
-./CMakeFiles/*
-./Makefile
+CMakeFiles
+CMakeFiles/*
+Makefile
 CMakeCache.txt
 
 # Compiled Object files

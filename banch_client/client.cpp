@@ -85,7 +85,7 @@ void batch_test(int s, size_t rq, size_t len, size_t key_len, size_t val_len, bo
 
 
   if(is_main) {
-    std::cout << "Total request: " << (rq * len)
+    std::cout << "\nTotal request: " << (rq * len)
               << "\nMode: pipeline"
               << "\nPayload per request: " << (key_len + val_len)
               << "\nCount messages per request: " << len << "\n";
@@ -122,7 +122,7 @@ void batch_test(int s, size_t rq, size_t len, size_t key_len, size_t val_len, bo
     printf("%c[2K", 27);
     std::cout << "--- EXECUTED ---"
               << "\nElapsed time: " << trange << " ms."
-              << "\nAverage RPS:" << int((rq * len) / trange) << "\n";
+              << "\nAverage RPS:" << int((rq * len) / trange) << "\n\n";
   }
 }
 
@@ -140,7 +140,7 @@ const size_t SZ = key_len + val_len  + 5;
   fill_buffer(buffer, batch.size(), batch.c_str());
 
   if(is_main) {
-    std::cout << "Total request: " << rq
+    std::cout << "\nTotal request: " << rq
               << "\nMode: by request"
               << "\nPayload per request: "
               << (key_len + val_len) << " bytes\n";
@@ -176,7 +176,7 @@ const size_t SZ = key_len + val_len  + 5;
     printf("%c[2K", 27);
     std::cout << "--- EXECUTED ---"
               << "\nElapsed time: " << trange << " ms."
-              << "\nAverage RPS:" << int(rq / trange) << "\n";
+              << "\nAverage RPS:" << int(rq / trange) << "\n\n";
   }
 }
 

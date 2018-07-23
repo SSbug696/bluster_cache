@@ -6,9 +6,6 @@ Supported pipelining and common operations such as SET, GET, EXPIRE, DEL, FLUSH,
 
 Basic implementation on Epoll and Kqueue sockets(only *nix systems)
 
-##### Request example:
- format [msg_len]msg
-
 ###### Prompt pattern for banch client 
 ```
 ./banch [ip] [port] [total request] [parallel clients] [mode] [key size] [value size]
@@ -19,14 +16,12 @@ Example: ./banch 127.0.0.1 8888 100000 2 mono 4 4
 ./banch [ip] [port] [total_request] [parallel clients] [mode] [size batch] [key size] [value size]
 ./banch 127.0.0.1 8888 100000 3 batch 50 2 8
 ```
-###### Simple:
-```
-[17]set key somevalue
-```
+###### Source requests format
 
-###### With pipeline:
+format [msg_len]msg
 ```
-[38][set key somevalue,set key2 somevalue]
+Simple request: [17]set key somevalue
+Pipelining: [38][set key somevalue,set key2 somevalue]
 ```
 
 ![Illustration](https://github.com/SSbug696/bluster_cache/blob/master/banch_client/img/img.png)

@@ -42,7 +42,7 @@ int get_len_prefix(size_t number) {
 int fill_buffer(char * buffer, int sz, const char * str) {
   stringstream ss;
   string str_ops(str);
-  ss.str("");    
+  ss.str("");
   ss << "[" << (str_ops.size()) << "]" << str;
   str_ops = ss.str();
   str_ops.copy(buffer, str_ops.size(), 0);
@@ -134,14 +134,14 @@ void batch_test(int s, size_t rq, size_t len, size_t key_len, size_t val_len, bo
   }
 }
 
-void mono_test(int s, size_t rq, size_t key_len, size_t val_len, bool is_main) {  
+void mono_test(int s, size_t rq, size_t key_len, size_t val_len, bool is_main) {
   size_t request_lim = REQ_UPSTAT_INTERVAL;
   const size_t SZ = 0xff * 0xff;
   char buffer[SZ];
   char buffer_recv[SZ];
   float trange;
   int i = 0;
-  
+
   std::string batch(rq_generator(false, 1, key_len, val_len));
   const size_t prefix_len = fill_buffer(buffer, batch.size(), batch.c_str());
   buffer[prefix_len + batch.size()] = '\0';
@@ -174,7 +174,7 @@ void mono_test(int s, size_t rq, size_t key_len, size_t val_len, bool is_main) {
         fflush(stdout);
       }
     }
-    
+
     i ++;
   }
 
@@ -248,19 +248,19 @@ int main(int argc, char const *argv[]) {
   char buffer[SZ];
   cmd_line.str().copy(buffer, SZ);
   cmd_line.str("");
-    
+
   for(int i = 0; i < SZ; i ++) {
       if(buffer[i] != ' ') {
           while(buffer[i] != ' ' && i < SZ) {
               cmd_line << buffer[i];
               i ++;
           }
-  
+
           params.push_back(cmd_line.str());
           cmd_line.str("");
       }
   }
-  
+
   if(params.size() % 2) {
       std::cerr << "Invalid count of params. Need key-value consistency" << std::endl;
   }
@@ -276,8 +276,8 @@ int main(int argc, char const *argv[]) {
 
   if(!keywords.count("-h")) {
     keywords["-h"] = "127.0.0.1";
-  } 
-  
+  }
+
   if(!keywords.count("-p")) {
     std::cerr << "Invalid parameter -p" << std::endl;
     return 1;
@@ -289,14 +289,14 @@ int main(int argc, char const *argv[]) {
     std::cerr << "Too small size parameter -ksz" << std::endl;
     return 1;
   }
- 
+
 
   if(!keywords.count("-vsz")) {
     keywords["-vsz"] = "3";
   } else if(std::stoi(keywords["-vsz"]) <= 0) {
     std::cerr << "Too small size parameter -vsz" << std::endl;
     return 1;
-  } 
+  }
 
   if(!keywords.count("-m")) {
     keywords["-m"] = "mono";

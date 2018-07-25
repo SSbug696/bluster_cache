@@ -8,13 +8,11 @@ Basic implementation on Epoll and Kqueue sockets(only *nix systems)
 
 ###### Prompt pattern for banch client 
 ```
-./banch [ip] [port] [total request] [parallel clients] [mode] [key size] [value size]
-Example: ./banch 127.0.0.1 8888 100000 2 mono 4 4
+./banch [-h] [-p] [-r] [-c] [-m] [-ksz] [-vsz]
+Example: ./banch -p 8888 -r 100000 -c 2 -m mono
 ```
-
 ```
-./banch [ip] [port] [total_request] [parallel clients] [mode] [size batch] [key size] [value size]
-./banch 127.0.0.1 8888 100000 3 batch 50 2 8
+./banch -p 8888 -r 100000 -c 3 -m batch -bsz 50
 ```
 ###### Source requests format
 

@@ -93,7 +93,7 @@ void batch_test(int s, size_t rq, size_t len, size_t key_len, size_t val_len, bo
   std::string batch(rq_generator(true, len, key_len, val_len));
   const size_t prefix_len = fill_buffer(buffer, batch.size(), batch.c_str());
   buffer[prefix_len + batch.size()] = '\0';
-  
+
   if(is_main) {
     std::cout << "Total requests: " << (rq * len)
               << "\nMode: pipeline"
@@ -209,7 +209,7 @@ void run(std::map<std::string, std::string> argv, bool is_main) {
 
   if(argv["-m"] == "batch") {
     batch_test(sock, std::stoi(argv["-r"]), std::stoi(argv["-bsz"]), std::stoi(argv["-ksz"]),  std::stoi(argv["-vsz"]), is_main);
-  } else 
+  } else
   if(argv["-m"] == "mono") {
     mono_test(sock, std::stoi(argv["-r"]), std::stoi(argv["-ksz"]),  std::stoi(argv["-vsz"]), is_main);
   } else {

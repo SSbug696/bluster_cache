@@ -1,7 +1,7 @@
 [![CodeFactor](https://www.codefactor.io/repository/github/ssbug696/bluster_cache/badge/master)](https://www.codefactor.io/repository/github/ssbug696/bluster_cache/overview/master)
 
-# Bluster cache (based on LRU principle)
-####  This is very simple and lightweight in-memory storage
+# Bluster cache
+####  This is very simple and lightweight in-memory storage based on LRU principle
 Supported pipelining and common operations such as SET, GET, EXPIRE, DEL, FLUSH, SIZE, EXIST
 Basic implementation on Epoll(in test) and Kqueue sockets(only *nix systems)
 

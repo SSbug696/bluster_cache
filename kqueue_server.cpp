@@ -7,6 +7,7 @@ int Server::get_len_prefix(int number) {
     number /= 10;
     prefix_counter ++;
   }
+
   return prefix_counter;
 }
 

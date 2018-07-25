@@ -1,19 +1,28 @@
 [![CodeFactor](https://www.codefactor.io/repository/github/ssbug696/bluster_cache/badge/master)](https://www.codefactor.io/repository/github/ssbug696/bluster_cache/overview/master)
 
 # Bluster cache
-#####  This is very simple and lightweight in-memory storage
+####  This is very simple and lightweight in-memory storage
 Supported pipelining and common operations such as SET, GET, EXPIRE, DEL, FLUSH, SIZE, EXIST
 
 Basic implementation on Epoll and Kqueue sockets(only *nix systems)
 
-###### Prompt pattern for banch client 
+##### Prompt pattern for banch client 
+| Command | Required| Default |
+| ------ | ----- |------  |
+|host[-h]|false|127.0.0.1|
+|port[-p]|true|-|
+|requests[-r]|false|10000|
+|parallel clients[-c]|false|2|
+|mode[-m]|false|mono|
+|key size[-ksz]|false|2|
+|value size[-vsz]|false|2|
+|batch size[-bsz]|only for "batch" mode|-|
+
 ```
-./banch [-h] [-p] [-r] [-c] [-m] [-ksz] [-vsz]
-Example: ./banch -p 8888 -r 100000 -c 2 -m mono
+Batch mode: ./banch -p 8888 -r 1000000 -c 3 -m mono
+Per request mode: ./banch -p 8888 -r 100000 -c 3 -m batch -bsz 50
 ```
-```
-./banch -p 8888 -r 100000 -c 3 -m batch -bsz 50
-```
+
 ###### Source requests format
 
 format [msg_len]msg

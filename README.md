@@ -1,10 +1,9 @@
 [![CodeFactor](https://www.codefactor.io/repository/github/ssbug696/bluster_cache/badge/master)](https://www.codefactor.io/repository/github/ssbug696/bluster_cache/overview/master)
 
-# Bluster cache
+# Bluster cache (based on LRU principle)
 ####  This is very simple and lightweight in-memory storage
 Supported pipelining and common operations such as SET, GET, EXPIRE, DEL, FLUSH, SIZE, EXIST
-
-Basic implementation on Epoll and Kqueue sockets(only *nix systems)
+Basic implementation on Epoll(in test) and Kqueue sockets(only *nix systems)
 
 ##### Prompt pattern for banch client 
 | Command | Required| Default |

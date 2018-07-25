@@ -2,7 +2,7 @@
 
 # Bluster cache
 ####  This is very simple, very fast and lightweight in-memory storage based on LRU principle
-Supported pipelining and common operations such as SET, GET, EXPIRE, DEL, FLUSH, SIZE, EXIST
+Supported operations such as SET, GET, EXPIRE, DEL, FLUSH, SIZE, EXIST. Productive batching(pipeline).
 Basic implementation on Epoll(in test) and Kqueue sockets(only *nix systems)
 
 ##### Prompt pattern for banch client 

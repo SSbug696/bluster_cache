@@ -4,6 +4,7 @@ matrix:
     - os: linux
       language: cpp
       compiler: gcc
+      dist: trusty
       addons:
         apt:
           sources:
@@ -17,6 +18,7 @@ matrix:
     - os: linux
       language: cpp
       compiler: clang
+      dist: trusty
       addons:
         apt:
           sources:

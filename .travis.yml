@@ -1,20 +1,16 @@
 matrix:
   include:
     - os: linux
-      env:
-        - COMPILER='clang++-5.0' 
-        - CXXSTD='c++11'
-      language: cpp
       dist: trusty
-      compiler:
-        - clang
+      env: COMPILER='clang++-5.0' CXXSTD='c++11'
+      language: cpp
+      compiler: clang
       addons:
         apt:
           sources:
             - llvm-toolchain-trusty-5.0
           packages:
             - clang-5.0
-      env:
       script: 
         - mkdir build && cd build
         - cmake ..
@@ -36,7 +32,6 @@ matrix:
             - g++-7
             - gcc-7
             - cmake
-      env:
       script: 
         - mkdir build && cd build
         - cmake ..

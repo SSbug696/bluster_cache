@@ -1,29 +1,40 @@
-sudo: require
-os:
-  - linux
-  - osx
-language: cpp
-dist: trusty
+matrix:
+  include:
+    - os: linux
+      sudo: require
+      language: cpp
+      dist: trusty
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-7
+            - gcc-7
+            - cmake
+      env:
+        - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
 
-addons:
-  apt:
-    sources:
-      - ubuntu-toolchain-r-test
-    packages:
-      - gcc-7
-      - g++-7
-      - cmake
+    - os: linux
+      sudo: require
+      language: cpp
+      dist: trusty
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-5.0
+          packages:
+            - clang-5.0
+      env:
+        - MATRIX_EVAL="CC=clang-5.0 && CXX=clang++-5.0"
 
-before_install:
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
-      brew update ;
-    fi
+    - os: osx
+      sudo: require
+      osx_image: xcode8
+      env:
+        - MATRIX_EVAL="brew install gcc && CC=gcc-7 && CXX=g++-7"
 
 script:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
-      export CC=gcc-7 ;
-      export CXX=g++-7 ;
-    fi
   - gcc -v && g++ -v && cmake --version
   - mkdir build && cd build
   - cmake ..

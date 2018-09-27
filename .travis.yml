@@ -7,13 +7,17 @@ matrix:
       addons:
         apt:
           sources:
-            - ubuntu-toolchain-r-test
+            - llvm-toolchain-trusty-5.0
           packages:
-            - g++-7
-            - gcc-7
-            - cmake
+            - clang-5.0
       env:
-        - MATRIX_EVAL="export CC=gcc-7 && export CXX=g++-7 && CC=gcc-7 && CXX=g++-7"
+        - MATRIX_EVAL="CC=clang-5.0 && CXX=clang++-5.0"
+
+      script:
+        - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
+          export CC=gcc-7 ;
+          export CXX=g++-7 ;
+        fi
 
     - os: linux
       sudo: require
@@ -22,11 +26,13 @@ matrix:
       addons:
         apt:
           sources:
-            - llvm-toolchain-trusty-5.0
+            - ubuntu-toolchain-r-test
           packages:
-            - clang-5.0
+            - g++-7
+            - gcc-7
+            - cmake
       env:
-        - MATRIX_EVAL="CC=clang-5.0 && CXX=clang++-5.0"
+        - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
 
     - os: osx
       sudo: require

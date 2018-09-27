@@ -24,8 +24,6 @@ script:
       export CC=gcc-7 ;
       export CXX=g++-7 ;
     fi
-
-script:
   - gcc -v && g++ -v && cmake --version
   - mkdir build && cd build
   - cmake ..

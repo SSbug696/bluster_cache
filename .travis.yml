@@ -26,8 +26,7 @@ matrix:
         - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
       language: cpp
       dist: trusty
-      compiler:
-        - gcc
+      compiler: gcc
       addons:
         apt:
           sources:

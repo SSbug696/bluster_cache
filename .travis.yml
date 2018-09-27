@@ -8,9 +8,9 @@ matrix:
           sources:
             - ubuntu-toolchain-r-test
           packages:
-            - g++-6
+            - g++-5
       env:
-        - MATRIX_EVAL="CXX=g++-6 && export CXX=g++-6 || true"
+        - MATRIX_EVAL="CXX=g++-5"
 
     # works on Trusty
     - os: linux

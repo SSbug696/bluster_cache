@@ -13,7 +13,7 @@ matrix:
             - gcc-7
             - cmake
       env:
-        - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
+        - MATRIX_EVAL="export CC=gcc-7 && export CXX=g++-7 && CC=gcc-7 && CXX=g++-7"
 
     - os: linux
       sudo: require
@@ -35,10 +35,6 @@ matrix:
         - MATRIX_EVAL="brew install gcc && CC=gcc-7 && CXX=g++-7"
 
 script:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
-      export CC=gcc-7 ;
-      export CXX=g++-7 ;
-    fi
   - gcc -v && g++ -v && cmake --version
   - mkdir build && cd build
   - cmake ..

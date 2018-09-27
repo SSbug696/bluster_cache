@@ -1,7 +1,7 @@
 #include <atomic>
 #include <string>
 #include <mutex>
-
+#include <string.h>
 #include "cache_options.h"
 
 class RRList {

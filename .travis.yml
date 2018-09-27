@@ -20,6 +20,8 @@ matrix:
             - llvm-toolchain-trusty-4.0
           packages:
             - clang-3.8
+          install:
+            - "[ $CXX = clang++ ] && export CXX=clang++-3.8 || true"
       env:
         - MATRIX_EVAL="CC=clang-4.0 && CXX=clang++-4.0"
 
@@ -27,9 +29,6 @@ matrix:
       osx_image: xcode8
       env:
         - MATRIX_EVAL="brew install gcc6 && CC=gcc-6 && CXX=g++-6"
-
-before_install:
-  - eval "${MATRIX_EVAL}"
 
 script:
   - cmake .

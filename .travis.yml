@@ -1,9 +1,13 @@
 matrix:
   include:
     - os: linux
-      sudo: require
+      env:
+        - COMPILER='clang++-5.0' 
+        - CXXSTD='c++11'
       language: cpp
       dist: trusty
+      compiler:
+        - clang
       addons:
         apt:
           sources:
@@ -11,12 +15,19 @@ matrix:
           packages:
             - clang-5.0
       env:
-        - MATRIX_EVAL="CC=clang-5.0 && CXX=clang++-5.0"
+      script: 
+        - mkdir build && cd build
+        - cmake ..
+        - make
 
     - os: linux
-      sudo: require
+      env:
+        - COMPILER='g++-7' 
+        - CXXSTD='c++11'
       language: cpp
       dist: trusty
+      compiler:
+        - gcc
       addons:
         apt:
           sources:
@@ -26,21 +37,14 @@ matrix:
             - gcc-7
             - cmake
       env:
-        - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
-
-      script:
-        - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
-          export CC=gcc-7 ;
-          export CXX=g++-7 ;
-        fi
+      script: 
+        - mkdir build && cd build
+        - cmake ..
+        - make
 
     - os: osx
       sudo: require
       osx_image: xcode8
       env:
         - MATRIX_EVAL="brew install gcc && CC=gcc-7 && CXX=g++-7"
-script:
-  - gcc -v && g++ -v && cmake --version
-  - mkdir build && cd build
-  - cmake ..
-  - make
+

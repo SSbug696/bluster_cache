@@ -3,11 +3,11 @@ matrix:
   include:
     - os: linux
       language: cpp
+      compiler: gcc
       addons:
         apt:
           sources:
             - ubuntu-toolchain-r-test
-            - llvm-toolchain-trusty-5.0
           packages:
             - g++-6
       env:
@@ -16,10 +16,10 @@ matrix:
     # works on Trusty
     - os: linux
       language: cpp
+      compiler: clang
       addons:
         apt:
           sources:
-            - ubuntu-toolchain-r-test
             - llvm-toolchain-trusty-5.0
           packages:
             - clang-5.0

@@ -4,6 +4,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <algorithm>
 
 class CfgReader {
   std::map<std::string, size_t> kv;

@@ -1,38 +1,19 @@
+sudo: false
 language: cpp
-matrix:
-  include:
-    - os: linux
-      language: cpp
-      compiler: g++
-      dist: trusty
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++-6
-      env:
-        - MATRIX_EVAL="CXX=g++-6 && export CXX=g++-6"
-
-    # works on Trusty
-    - os: linux
-      language: cpp
-      compiler: clang++
-      dist: trusty
-      addons:
-        apt:
-          sources:
-            - llvm-toolchain-trusty-5.0
-          packages:
-            - clang-5.0
-      env:
-        - MATRIX_EVAL="CXX=clang++-5.0 && export CXX=clang++-5.0"
-
-    - os: osx
-      language: cpp
-      osx_image: xcode8
-      env:
-        - MATRIX_EVAL="brew install gcc6 && CXX=g++-6"
+compiler:
+  - gcc
+  - clang
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    - llvm-toolchain-precise-3.8
+    packages:
+    - g++-6
+    - clang-3.8
+install:
+- "[ $CXX = g++ ] && export CXX=g++-6 || true"
+- "[ $CXX = clang++ ] && export CXX=clang++-3.8 || true"
 
 script:
   - mkdir build && cd build

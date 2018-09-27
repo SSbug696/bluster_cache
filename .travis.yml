@@ -1,21 +1,32 @@
-sudo: false
+sudo: require
+os:
+  - linux
+  - osx
 language: cpp
-compiler:
-  - gcc
-  - clang
+dist: trusty
+
 addons:
   apt:
     sources:
-    - ubuntu-toolchain-r-test
-    - llvm-toolchain-precise-3.8
+      - ubuntu-toolchain-r-test
     packages:
-    - g++-6
-    - clang-3.8
-install:
-- "[ $CXX = g++ ] && export CXX=g++-6 || true"
-- "[ $CXX = clang++ ] && export CXX=clang++-3.8 || true"
+      - gcc-7
+      - g++-7
+      - cmake
+
+before_install:
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+      brew update ;
+    fi
 
 script:
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
+      export CC=gcc-7 ;
+      export CXX=g++-7 ;
+    fi
+
+script:
+  - gcc -v && g++ -v && cmake --version
   - mkdir build && cd build
   - cmake ..
   - make

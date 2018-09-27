@@ -1,6 +1,27 @@
 matrix:
   include:
     - os: linux
+      dist: trusty
+      env:
+        - MATRIX_EVAL="CC=clang-5.0 && CXX=clang++-5.0"
+      language: cpp
+      compiler: clang
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-5.0
+          packages:
+            - clang-5.0
+      script:
+        - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
+          export CC=clang-5.0 ;
+          export CXX=clang++-5.0 ;
+        fi
+        - mkdir build && cd build
+        - cmake ..
+        - make
+
+    - os: linux
       env:
         - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
       language: cpp

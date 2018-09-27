@@ -18,6 +18,6 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install graphviz; fi
 
 script:
-  - cd src
+  - cmake .
   - make all
 

@@ -1,17 +1,13 @@
 sudo: false
 language: cpp
 compiler:
-  - gcc
   - clang
 addons:
   apt:
     sources:
-    - ubuntu-toolchain-r-test
     - llvm-toolchain-precise-3.8
     packages:
     - g++-6
-    - clang-3.8
-
 script:
   - cmake .
   - make

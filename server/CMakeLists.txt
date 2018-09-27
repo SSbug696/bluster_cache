@@ -1,5 +1,5 @@
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_FORCE_INLINES -std=c++11 -pthread -flto -O2 -fstrict-aliasing -Wall -pedantic")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_FORCE_INLINES -std=c++14 -pthread -flto -O2 -fstrict-aliasing -Wall -pedantic")
 
 if(UNIX AND NOT APPLE AND NOT WIN32)
     set(LINUX TRUE)

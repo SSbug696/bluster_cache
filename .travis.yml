@@ -7,10 +7,11 @@ matrix:
         apt:
           sources:
             - ubuntu-toolchain-r-test
+            - llvm-toolchain-trusty-5.0
           packages:
-            - g++-5
+            - g++-6
       env:
-        - MATRIX_EVAL="CXX=g++-5"
+        - MATRIX_EVAL="CXX=g++-6 && export CXX=g++-6"
 
     # works on Trusty
     - os: linux
@@ -18,11 +19,12 @@ matrix:
       addons:
         apt:
           sources:
+            - ubuntu-toolchain-r-test
             - llvm-toolchain-trusty-5.0
           packages:
             - clang-5.0
       env:
-        - MATRIX_EVAL="CXX=clang++-5.0 && export CXX=clang++-5.0 || true"
+        - MATRIX_EVAL="CXX=clang++-5.0 && export CXX=clang++-5.0"
 
     - os: osx
       language: cpp
@@ -31,5 +33,6 @@ matrix:
         - MATRIX_EVAL="brew install gcc6 && CXX=g++-6"
 
 script:
-  - cmake .
+  - mkdir build && cd build
+  - cmake ..
   - make

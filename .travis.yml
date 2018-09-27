@@ -19,11 +19,11 @@ matrix:
           sources:
             - llvm-toolchain-trusty-4.0
           packages:
-            - clang-3.8
+            - clang-5.0
           install:
             - "[ $CXX = clang++ ] && export CXX=clang++-3.8 || true"
       env:
-        - MATRIX_EVAL="CC=clang-4.0 && CXX=clang++-4.0"
+        - MATRIX_EVAL="CC=clang-5.0 && CXX=clang++-4.0"
 
     - os: osx
       osx_image: xcode8

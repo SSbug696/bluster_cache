@@ -3,7 +3,7 @@ matrix:
   include:
     - os: linux
       language: cpp
-      compiler: gcc
+      compiler: g++
       dist: trusty
       addons:
         apt:
@@ -17,7 +17,7 @@ matrix:
     # works on Trusty
     - os: linux
       language: cpp
-      compiler: clang
+      compiler: clang++
       dist: trusty
       addons:
         apt:

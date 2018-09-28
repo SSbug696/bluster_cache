@@ -13,10 +13,8 @@ matrix:
           packages:
             - clang-5.0
       script:
-        - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
-          export CC=clang-5.0 ;
-          export CXX=clang++-5.0 ;
-        fi
+        - export CC=clang-5.0
+        - export CXX=clang++-5.0
         - mkdir build && cd build
         - cmake ..
         - make
@@ -36,10 +34,8 @@ matrix:
             - gcc-7
             - cmake
       script:
-        - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
-          export CC=gcc-7 ;
-          export CXX=g++-7 ;
-        fi
+        - export CC=gcc-7
+        - export CXX=g++-7
         - mkdir build && cd build
         - cmake ..
         - make

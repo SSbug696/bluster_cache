@@ -1,5 +1,6 @@
 matrix:
   include:
+
     - os: linux
       dist: trusty
       env:
@@ -43,11 +44,13 @@ matrix:
         - mkdir build && cd build
         - cmake ..
         - make
+
     - os: osx
       sudo: require
       osx_image: xcode8
       env:
         - MATRIX_EVAL="brew install gcc && CC=gcc-7 && CXX=g++-7"
+        
 script: 
   - mkdir build && cd build
   - cmake ..

@@ -36,7 +36,7 @@ matrix:
             - g++-7
             - gcc-7
             - cmake
-      script: 
+      script:
         - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
           export CC=gcc-7 ;
           export CXX=g++-7 ;
@@ -50,8 +50,8 @@ matrix:
       osx_image: xcode8
       env:
         - MATRIX_EVAL="brew install gcc && CC=gcc-7 && CXX=g++-7"
-        
-script: 
+
+script:
   - mkdir build && cd build
   - cmake ..
   - make

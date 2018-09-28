@@ -1,6 +1,6 @@
-[![CodeFactor](https://www.codefactor.io/repository/github/ssbug696/bluster_cache/badge/master)](https://www.codefactor.io/repository/github/ssbug696/bluster_cache/overview/master)
+[![CodeFactor](https://www.codefactor.io/repository/github/ssbug696/bluster_cache/badge/master)](https://www.codefactor.io/repository/github/ssbug696/bluster_cache/overview/master) [![Build Status](https://travis-ci.org/SSbug696/bluster_cache.svg?branch=master)](https://travis-ci.org/SSbug696/bluster_cache)
 
-[![Build Status](https://travis-ci.org/SSbug696/bluster_cache.svg?branch=master)](https://travis-ci.org/SSbug696/bluster_cache)
+
 
 # Bluster cache
 ####  This is very simple, very fast and lightweight in-memory storage based on LRU principle
